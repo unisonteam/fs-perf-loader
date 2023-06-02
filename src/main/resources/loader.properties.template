@@ -1,0 +1,94 @@
+#in lower case: reserved words
+#in upper case: examples that may be replaced with any value
+
+#it is possible to have many loaders and movers in one config
+#use same seed to repeat the same load - file names and sizes.
+#if seed is not set, it is taken from Unix timestamp
+#seed=12345
+
+#optional : set JVM options (default: '-Xmx1G')
+#jvmoptions=....
+#optional : kerberos keytab and principal
+#kerberos.principal=...
+#kerberos.keytab=...
+
+#default: current user
+ssh.user=aluht
+#connect by key:
+#default: $HOME/.ssh/id_rsa
+ssh.key=/home/user/.ssh/private_key
+#connect by password:
+#ssh.password=secret
+
+#optional: configurations. contains S3 connection properties for S3 or additional HDFS client properties for HDFS
+#conf.MYS3.s3.bucket=mybucket
+#conf.MYS3.s3.key=accessKeyId
+#conf.MYS3.s3.secret=secretAccessKey
+#conf.MYS3.s3.url=http://url...
+
+fsloader.LOAD.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
+fsloader.LOAD.paths=/tmp/path1,/tmp/path2
+#alternative way to specify paths (and hosts): 'count:mask'
+#fsloader.LOAD.paths=5:/tmp/path%03d
+#will be expanded to
+#fsloader.LOAD.paths=/tmp/path000,/tmp/path001,/tmp/path002,/tmp/path003,/tmp/path004
+#fsloader.LOAD.paths=2:/tmp/path%d/path%d
+#will be expanded to
+#/tmp/path0/path0,/tmp/path1/path0,/tmp/path0/path1,/tmp/path1/path1
+#alternative way to specify paths (and hosts): '{start..end}'
+#fsloader.LOAD.paths=/tmp/path{19..21}
+#will be expanded to
+#/tmp/path19,/tmp/path20,/tmp/path21
+#optional: set conf configured above
+#fsloader.LOAD.conf=MYS3
+#optional: workload json (s3tester format https://github.com/s3tester/s3tester/blob/master/example/workload.json)
+#fsloader.LOAD.workload=path/to/workload
+
+#total threads, not for each path
+fsloader.LOAD.threads=3
+fsloader.LOAD.subdirs.depth=2
+fsloader.LOAD.subdirs.width=3
+#string format for subdirs. if it is not set - subdirs are just numbers (0/0, etc)
+#with the setting below subdirs will be dir000/dir000 , etc
+#fsloader.LOAD.subdirs.format=dir%03d
+
+#batches for each path
+#number of files in each batch
+fsloader.LOAD.batch.file.count=100
+#number of batches for each path
+fsloader.LOAD.batch.count=100
+#loader may fill paths one by one - one batch - one path (type='WINDOW') or
+#spread load so every batch contains files for different paths (type='SPREAD').
+#default type is 'WINDOW'
+#fsloader.LOAD.batch.type=WINDOW
+
+#percentage
+fsloader.LOAD.batch.file.sizes=10:10M,5:10K,85:50K
+#percentage
+fsloader.LOAD.batch.file.suffixes=90:good,10:bad
+fsloader.LOAD.batch.timeout=600
+#optional: write data to a temporary _COPYING_ file and rename if to the final destination at the end (default: true)
+#applicable to HDFS only
+#fsloader.LOAD.usetmpfile=true
+#optional: delay after loading of each file (in millis)
+#fsloader.LOAD.delay=100
+#optional: number of loads (default: 1 - only one load is done)
+#fsloader.LOAD.count=2
+#optional: if there are several loads - delay between them in seconds (default: 0)
+#fsloader.LOAD.period=60
+#optional: fill files with random data (=random) or with a predefined char (=0 for zeroes, =97 for 'a', etc). default: random
+#fsloader.LOAD.fill=random
+
+#mover source and target are single path, not a list of paths
+#if you want to move between several directories in parallel, either give their common root as an argument or create several movers
+#if target is '/dev/null', files will be removed
+fsmover.MV.host=fat01-vm1.sbrf.ru
+fsmover.MV.source=/tmp/path1
+fsmover.MV.target=/tmp/path3
+#delay in seconds to start moving
+fsmover.MV.delay=300
+fsmover.MV.period=60
+fsmover.MV.suffixes=good
+fsmover.MV.remove.suffix=false
+#number of threads (default 8)
+#fsmover.MV.threads=10
