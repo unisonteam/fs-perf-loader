@@ -1,7 +1,5 @@
 package team.unison.remote;
 
-import static java.rmi.registry.Registry.REGISTRY_PORT;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -29,10 +27,10 @@ class AgentImpl implements Agent, Unreferenced {
   public static synchronized void start() {
     LOGGER.info("Agent started at {}", new Date());
     try {
-      Registry registry = LocateRegistry.createRegistry(REGISTRY_PORT);
+      Registry registry = LocateRegistry.createRegistry(AGENT_REGISTRY_PORT);
       Agent instance = new AgentImpl();
-      UnicastRemoteObject.exportObject(instance, REGISTRY_PORT);
-      registry.bind(REGISTRY_NAME, instance);
+      UnicastRemoteObject.exportObject(instance, AGENT_REGISTRY_PORT);
+      registry.bind(AGENT_REGISTRY_NAME, instance);
     } catch (IOException e) {
       LOGGER.error("IOException in start()", e);
       throw new UncheckedIOException(e);
@@ -52,8 +50,8 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public long[] load(Map<String, String> conf, Map<String, Long> arg, List<Map<String, String>> workload) {
-    return FsLoaderBatchRemote.apply(conf, arg, workload);
+  public long[] load(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command) {
+    return FsLoaderBatchRemote.apply(conf, arg, command);
   }
 
   @Override

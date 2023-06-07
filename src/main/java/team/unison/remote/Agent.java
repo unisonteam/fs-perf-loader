@@ -1,16 +1,19 @@
 package team.unison.remote;
 
+import static java.rmi.registry.Registry.REGISTRY_PORT;
+
 import java.io.IOException;
 import java.rmi.Remote;
 import java.util.List;
 import java.util.Map;
 
 public interface Agent extends Remote {
-  String REGISTRY_NAME = "Agent";
+  String AGENT_REGISTRY_NAME = "Agent";
+  int AGENT_REGISTRY_PORT = REGISTRY_PORT;
 
   String info() throws IOException;
 
-  long[] load(Map<String, String> conf, Map<String, Long> arg, List<Map<String, String>> workload) throws IOException;
+  long[] load(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command) throws IOException;
 
   void move(String path, List<String> arg) throws IOException;
 

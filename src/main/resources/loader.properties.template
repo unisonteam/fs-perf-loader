@@ -24,7 +24,7 @@ ssh.key=/home/user/.ssh/private_key
 #conf.MYS3.s3.bucket=mybucket
 #conf.MYS3.s3.key=accessKeyId
 #conf.MYS3.s3.secret=secretAccessKey
-#conf.MYS3.s3.url=http://url...
+#conf.MYS3.s3.uri=http://url...
 
 fsloader.LOAD.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
 fsloader.LOAD.paths=/tmp/path1,/tmp/path2

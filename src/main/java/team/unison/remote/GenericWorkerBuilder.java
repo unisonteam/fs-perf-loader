@@ -1,11 +1,11 @@
 package team.unison.remote;
 
-import static java.rmi.registry.Registry.REGISTRY_PORT;
 import static team.unison.remote.Utils.sleep;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.rmi.Naming;
+import java.rmi.NotBoundException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
@@ -34,10 +34,19 @@ public class GenericWorkerBuilder implements Serializable {
   }
 
   public static GenericWorker newInstance(SshConnectionBuilder sshConnectionBuilder) {
-    RemoteExec.deployAgent(sshConnectionBuilder);
-
-    String connectionLocation = "//" + sshConnectionBuilder.getHost() + ":" + REGISTRY_PORT + "/" + Agent.REGISTRY_NAME;
+    String connectionLocation = "//" + sshConnectionBuilder.getHost() + ":" + Agent.AGENT_REGISTRY_PORT + "/" + Agent.AGENT_REGISTRY_NAME;
     LOGGER.info("Connection location: " + connectionLocation);
+
+    try {
+      Agent agent = (Agent) Naming.lookup(connectionLocation);
+      agent.info(); // ping
+      // if agent is alive - continue without new deploy
+      LOGGER.info("Connection to old instance of " + connectionLocation + " was successful");
+      return new WorkerImpl(agent, sshConnectionBuilder.getHost());
+    } catch (IOException | NotBoundException e) { // no old instance - will start a new one
+    }
+
+    RemoteExec.deployAgent(sshConnectionBuilder);
     try {
       Agent agent = null;
       for (int i = 0; i < 600; i++) {

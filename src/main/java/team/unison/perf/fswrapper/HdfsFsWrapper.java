@@ -30,7 +30,7 @@ class HdfsFsWrapper implements FsWrapper {
   }
 
   @Override
-  public boolean create(String path, long length, byte[] data, boolean useTmpFile) {
+  public boolean create(String bucket, String path, long length, byte[] data, boolean useTmpFile) {
     final Path tmpPath = useTmpFile ? new Path(path + "._COPYING_") : new Path(path);
     try {
       try (FSDataOutputStream fdos = fs.create(tmpPath)) {
@@ -50,11 +50,6 @@ class HdfsFsWrapper implements FsWrapper {
       return false;
     }
     return true;
-  }
-
-  @Override
-  public boolean create(String bucket, String path, long length, byte[] data) {
-    throw new IllegalArgumentException("Not applicable for HDFS");
   }
 
   @Override

@@ -24,6 +24,8 @@ public final class PerfLoaderMain {
   }
 
   public static void main(String[] args) throws IOException {
+    Thread.setDefaultUncaughtExceptionHandler((t, e) -> log.warn("Uncaught exception in thread {}", t.getName(), e));
+
     String propertiesFilePath = parseArgs(args);
     Properties properties = new Properties();
     try {

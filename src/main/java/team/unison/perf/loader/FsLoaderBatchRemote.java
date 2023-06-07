@@ -9,12 +9,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
 
 public class FsLoaderBatchRemote {
+  private static final Logger log = LoggerFactory.getLogger(FsLoaderBatchRemote.class);
+
   // these filenames are not valid - use them to pass extra control metadata
   static final String THREAD_NUMBER_KEY = ":";
   // C style: 0 is false, else is true
@@ -22,12 +26,12 @@ public class FsLoaderBatchRemote {
   static final String LOAD_DELAY_IN_MILLIS_KEY = ":::";
   static final String FILL_KEY = "::::";
 
-  public static long[] apply(Map<String, String> conf, Map<String, Long> arg, List<Map<String, String>> workload) {
+  public static long[] apply(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command) {
     if (arg.isEmpty()) {
       return new long[0];
     }
 
-    final byte[] barr = new byte[134217728];
+    final byte[] barr = new byte[128 * 1024 * 1024];
     long fill = arg.remove(FILL_KEY);
     // 0 - no action - leave array filled with zeroes
     if (fill < 0) {
@@ -52,16 +56,15 @@ public class FsLoaderBatchRemote {
         .map(entry -> Executors.callable(
             () -> {
               long start = System.nanoTime();
-              boolean success = runWorkload(fsWrapper, entry.getKey(), entry.getValue(), barr, useTmpFile, workload);
+              boolean success = runWorkload(fsWrapper, entry.getKey(), entry.getValue(), barr, useTmpFile, command);
               long elapsed = System.nanoTime() - start;
-              ret[pos.getAndIncrement()] = (success ? 1L : -1L) * elapsed;
+              ret[pos.getAndIncrement()] = elapsed * (success ? 1 : -1);
               if (delayInMillis > 0) {
                 Utils.sleep(delayInMillis);
               }
             }
         ))
         .collect(Collectors.toList());
-
     try {
       executorService.invokeAll(callables);
     } catch (InterruptedException e) {
@@ -73,29 +76,19 @@ public class FsLoaderBatchRemote {
   }
 
   private static boolean runWorkload(FsWrapper fsWrapper, String path, long size, byte[] data, boolean useTmpFile,
-                                     List<Map<String, String>> workload) {
-
-    if (workload == null || workload.isEmpty()) {
-      return fsWrapper.create(path, size, data, useTmpFile);
-    } else {
-      boolean result = true;
-
-      for (Map<String, String> command : workload) {
-        String op = command.get("operation");
-        if ("put".equalsIgnoreCase(op)) {
-          result &= fsWrapper.create(command.get("bucket"), path, size, data);
-        } else if ("copy".equalsIgnoreCase(op)) {
-          result &= fsWrapper.copy(command.get("copy-source-bucket"), command.get("bucket"), path);
-        } else if ("get".equalsIgnoreCase(op)) {
-          result &= fsWrapper.get(command.get("bucket"), path);
-        } else if ("head".equalsIgnoreCase(op)) {
-          result &= fsWrapper.head(command.get("bucket"), path);
-        } else if ("delete".equalsIgnoreCase(op)) {
-          result &= fsWrapper.delete(command.get("bucket"), path);
-        }
-      }
-
-      return result;
+                                     Map<String, String> command) {
+    String op = command.get("operation");
+    if ("put".equalsIgnoreCase(op)) {
+      return fsWrapper.create(command.get("bucket"), path, size, data, useTmpFile);
+    } else if ("copy".equalsIgnoreCase(op)) {
+      return fsWrapper.copy(command.get("copy-source-bucket"), command.get("bucket"), path);
+    } else if ("get".equalsIgnoreCase(op)) {
+      return fsWrapper.get(command.get("bucket"), path);
+    } else if ("head".equalsIgnoreCase(op)) {
+      return fsWrapper.head(command.get("bucket"), path);
+    } else if ("delete".equalsIgnoreCase(op)) {
+      return fsWrapper.delete(command.get("bucket"), path);
     }
+    throw new IllegalArgumentException("command " + op + " is not supported");
   }
 }
