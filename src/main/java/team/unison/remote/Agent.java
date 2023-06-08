@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.rmi.Remote;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 public interface Agent extends Remote {
   String AGENT_REGISTRY_NAME = "Agent";
@@ -17,5 +18,5 @@ public interface Agent extends Remote {
 
   void move(String path, List<String> arg) throws IOException;
 
-  void kinit(String principal, String keytab) throws IOException;
+  void init(Properties properties) throws IOException;
 }

@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class TestUtils {
-  private static final Logger LOGGER = LoggerFactory.getLogger(TestUtils.class);
+  private static final Logger log = LoggerFactory.getLogger(TestUtils.class);
   private static final Properties TESTS_PROPERTIES = new Properties();
 
   private TestUtils() {
@@ -17,7 +17,7 @@ public class TestUtils {
     try {
       TESTS_PROPERTIES.load(TestUtils.class.getResourceAsStream("/tests.properties"));
     } catch (IOException e) {
-      LOGGER.error("Can't initialize tests.properties", e);
+      log.error("Can't initialize tests.properties", e);
       throw new UncheckedIOException("Can't initialize tests.properties", e);
     }
   }

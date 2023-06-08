@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 import team.unison.perf.PerfLoaderUtils;
 
 final class RemoteExec {
-  private static final Logger LOGGER = LoggerFactory.getLogger(RemoteExec.class);
+  private static final Logger log = LoggerFactory.getLogger(RemoteExec.class);
 
   private static final String DEPLOY_DIR_MASK = "/tmp/remote-agent-%s-%02d";
   private static final String AGENT_SCRIPT_NAME = "agent.sh";
@@ -45,13 +45,13 @@ final class RemoteExec {
         File jarFile = jarsDir.toFile().listFiles((dir, name) -> name.endsWith("fat.jar"))[0];
         jarPath = jarFile.toPath();
       }
-      LOGGER.info("Jar path is {}", jarPath);
+      log.info("Jar path is {}", jarPath);
 
       try (InputStream jarStream = Files.newInputStream(jarPath)) {
         sshConnectionBuilder.put(jarStream, packageJarFile);
       }
     } catch (URISyntaxException | IOException e) {
-      LOGGER.warn("Error uploading jar file to remote host " + sshConnectionBuilder.getHost(), e);
+      log.warn("Error uploading jar file to remote host " + sshConnectionBuilder.getHost(), e);
     }
 
     List<String> commands = new ArrayList<>();
@@ -91,7 +91,7 @@ final class RemoteExec {
         return br.readLine();
       }
     } catch (IOException | NullPointerException e) {
-      LOGGER.warn("Failed to read version", e);
+      log.warn("Failed to read version", e);
     }
     return "WIP";
   }

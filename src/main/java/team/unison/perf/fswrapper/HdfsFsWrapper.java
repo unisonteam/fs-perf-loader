@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 import team.unison.remote.WorkerException;
 
 class HdfsFsWrapper implements FsWrapper {
-  private static final Logger LOGGER = LoggerFactory.getLogger(HdfsFsWrapper.class);
+  private static final Logger log = LoggerFactory.getLogger(HdfsFsWrapper.class);
   private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
 
   final FileSystem fs;
@@ -48,7 +48,7 @@ class HdfsFsWrapper implements FsWrapper {
         }
       }
     } catch (IOException e) {
-      LOGGER.warn("Can't create file {}", path, e);
+      log.warn("Can't create file {}", path, e);
       return false;
     }
     return true;

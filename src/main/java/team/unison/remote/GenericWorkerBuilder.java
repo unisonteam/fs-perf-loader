@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 import team.unison.perf.PerfLoaderUtils;
 
 public class GenericWorkerBuilder implements Serializable {
-  private static final Logger LOGGER = LoggerFactory.getLogger(GenericWorkerBuilder.class);
+  private static final Logger log = LoggerFactory.getLogger(GenericWorkerBuilder.class);
 
   private transient SshConnectionBuilder sshConnectionBuilder;
   private static final Map<SshConnectionBuilder, GenericWorker> DEPLOYED_WORKERS = new ConcurrentHashMap<>();
@@ -35,13 +35,13 @@ public class GenericWorkerBuilder implements Serializable {
 
   public static GenericWorker newInstance(SshConnectionBuilder sshConnectionBuilder) {
     String connectionLocation = "//" + sshConnectionBuilder.getHost() + ":" + Agent.AGENT_REGISTRY_PORT + "/" + Agent.AGENT_REGISTRY_NAME;
-    LOGGER.info("Connection location: " + connectionLocation);
+    log.info("Connection location: " + connectionLocation);
 
     try {
       Agent agent = (Agent) Naming.lookup(connectionLocation);
       agent.info(); // ping
       // if agent is alive - continue without new deploy
-      LOGGER.info("Connection to old instance of " + connectionLocation + " was successful");
+      log.info("Connection to old instance of " + connectionLocation + " was successful");
       return new WorkerImpl(agent, sshConnectionBuilder.getHost());
     } catch (IOException | NotBoundException e) { // no old instance - will start a new one
     }
@@ -53,10 +53,9 @@ public class GenericWorkerBuilder implements Serializable {
         try {
           agent = (Agent) Naming.lookup(connectionLocation);
           agent.info(); // ping
-          agent.kinit(PerfLoaderUtils.getGlobalProperties().getProperty("kerberos.principal"),
-                      PerfLoaderUtils.getGlobalProperties().getProperty("kerberos.keytab"));
+          agent.init(PerfLoaderUtils.getGlobalProperties());
 
-          LOGGER.info("Connection to " + connectionLocation + " was successful");
+          log.info("Connection to " + connectionLocation + " was successful");
           break;
         } catch (IOException e) {
           sleep(100);
@@ -76,11 +75,6 @@ public class GenericWorkerBuilder implements Serializable {
 
   public SshConnectionBuilder getSshConnectionBuilder() {
     return sshConnectionBuilder;
-  }
-
-  public GenericWorkerBuilder jvmOptions(String jvmOptions) {
-    GenericWorkerBuilder copy = copy();
-    return copy;
   }
 
   @Override

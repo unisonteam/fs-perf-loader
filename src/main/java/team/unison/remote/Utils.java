@@ -14,7 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Utils {
-  private static final Logger LOGGER = LoggerFactory.getLogger(Utils.class);
+  private static final Logger log = LoggerFactory.getLogger(Utils.class);
 
   // threads prevent VMs from shutting down if they are not daemon
   private static final ExecutorService EXECUTOR_SERVICE = Executors.newCachedThreadPool(new ThreadFactory() {
@@ -37,13 +37,13 @@ public class Utils {
     try {
       return future.get(duration.toMillis(), TimeUnit.MILLISECONDS);
     } catch (TimeoutException e) {
-      LOGGER.error("Execution timeout " + duration.toMillis() + " TimeUnit.MILLISECONDS", e);
+      log.error("Execution timeout " + duration.toMillis() + " TimeUnit.MILLISECONDS", e);
       throw new RuntimeException("Execution timeout " + duration, e);
     } catch (InterruptedException e) {
-      LOGGER.error("Execution was interrupted: ", e);
+      log.error("Execution was interrupted: ", e);
       throw new RuntimeException("Execution was interrupted", e);
     } catch (ExecutionException e) {
-      LOGGER.error("Exception in execution: ", e);
+      log.error("Exception in execution: ", e);
       throw new RuntimeException("Exception in execution", e);
     }
   }
@@ -52,7 +52,7 @@ public class Utils {
     try {
       Thread.sleep(millis);
     } catch (InterruptedException e) {
-      LOGGER.error("InterruptedException", e);
+      log.error("InterruptedException", e);
       throw new RuntimeException(e);
     }
   }

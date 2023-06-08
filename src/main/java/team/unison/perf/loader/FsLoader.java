@@ -248,7 +248,7 @@ public final class FsLoader implements Runnable {
       batch.put(FsLoaderBatchRemote.LOAD_DELAY_IN_MILLIS_KEY, loadDelay.toMillis());
       batch.put(FsLoaderBatchRemote.FILL_KEY, "random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
 
-      log.info("Start loader batch for host {}", fw.getHost());
+      log.info("Start loader batch for command '{}' at host {}", command.get("operation"), fw.getHost());
       Instant before = Instant.now();
       try {
         long[] loadResult = fw.getAgent().load(conf, batch, command);
@@ -258,8 +258,8 @@ public final class FsLoader implements Runnable {
       } catch (IOException e) {
         throw WorkerException.wrap(e);
       }
-      log.info("End loader batch for host {}, batch took {}", fw.getHost(), Duration.between(before,
-                                                                                             Instant.now()));
+      log.info("End loader batch for command '{}' at host {}, batch took {}", command.get("operation"),
+               fw.getHost(), Duration.between(before, Instant.now()));
     }
   }
 

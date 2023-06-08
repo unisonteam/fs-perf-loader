@@ -12,30 +12,32 @@ import java.rmi.server.Unreferenced;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import team.unison.perf.PrometheusUtils;
 import team.unison.perf.loader.FsLoaderBatchRemote;
 import team.unison.perf.mover.FsMoverRemote;
 
 class AgentImpl implements Agent, Unreferenced {
-  private static final Logger LOGGER = LoggerFactory.getLogger(AgentImpl.class);
+  private static final Logger log = LoggerFactory.getLogger(AgentImpl.class);
 
   private AgentImpl() {
   }
 
   public static synchronized void start() {
-    LOGGER.info("Agent started at {}", new Date());
+    log.info("Agent started at {}", new Date());
     try {
       Registry registry = LocateRegistry.createRegistry(AGENT_REGISTRY_PORT);
       Agent instance = new AgentImpl();
       UnicastRemoteObject.exportObject(instance, AGENT_REGISTRY_PORT);
       registry.bind(AGENT_REGISTRY_NAME, instance);
     } catch (IOException e) {
-      LOGGER.error("IOException in start()", e);
+      log.error("IOException in start()", e);
       throw new UncheckedIOException(e);
     } catch (AlreadyBoundException e) {
-      LOGGER.error("AlreadyBoundException in start()", e);
+      log.error("AlreadyBoundException in start()", e);
       throw new RuntimeException(e);
     }
   }
@@ -64,16 +66,21 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public void kinit(String principal, String keytab) throws IOException {
+  public void init(Properties properties) throws IOException {
+    // init kerberos
+    String principal = properties.getProperty("kerberos.principal");
+    String keytab = properties.getProperty("kerberos.keytab");
     if ((principal != null) && (keytab != null)) {
-      LOGGER.info("kinit {} {}", principal, keytab);
+      log.info("kinit {} {}", principal, keytab);
       UserGroupInformation.loginUserFromKeytab(principal, keytab);
     }
+    // init prometheus
+    PrometheusUtils.init(properties);
   }
 
   @Override
   public void unreferenced() {
-    LOGGER.info("Agent stopped at {}", new Date());
+    log.info("Agent stopped at {}", new Date());
     System.exit(0);
   }
 }

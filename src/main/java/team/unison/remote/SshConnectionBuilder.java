@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SshConnectionBuilder implements Serializable {
-  private static final Logger LOGGER = LoggerFactory.getLogger(SshConnectionBuilder.class);
+  private static final Logger log = LoggerFactory.getLogger(SshConnectionBuilder.class);
   private String host;
   private String sshUser;
   private String systemUser;
@@ -99,7 +99,7 @@ public class SshConnectionBuilder implements Serializable {
       return;
     }
     if (host == null || sshUser == null || (identity == null && password == null)) {
-      LOGGER.error("All field should be set for SSH connection: host, port and identity or password " + toString());
+      log.error("All field should be set for SSH connection: host, port and identity or password " + toString());
       throw new IllegalArgumentException("All field should be set for SSH connection: host, port and identity or password " + toString());
     }
   }

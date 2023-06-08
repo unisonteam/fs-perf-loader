@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.remote.Utils;
@@ -18,7 +19,6 @@ import team.unison.remote.WorkerException;
 
 public class FsLoaderBatchRemote {
   private static final Logger log = LoggerFactory.getLogger(FsLoaderBatchRemote.class);
-
   // these filenames are not valid - use them to pass extra control metadata
   static final String THREAD_NUMBER_KEY = ":";
   // C style: 0 is false, else is true
@@ -58,6 +58,7 @@ public class FsLoaderBatchRemote {
               long start = System.nanoTime();
               boolean success = runWorkload(fsWrapper, entry.getKey(), entry.getValue(), barr, useTmpFile, command);
               long elapsed = System.nanoTime() - start;
+              PrometheusUtils.record(command.get("operation"), entry.getValue(), success, elapsed / 1_000);
               ret[pos.getAndIncrement()] = elapsed * (success ? 1 : -1);
               if (delayInMillis > 0) {
                 Utils.sleep(delayInMillis);

@@ -18,14 +18,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SshConnectionFactory {
-  private static final Logger LOGGER = LoggerFactory.getLogger(SshConnectionFactory.class);
+  private static final Logger log = LoggerFactory.getLogger(SshConnectionFactory.class);
 
   public static SshConnectionBuilder build() {
     return new SshConnectionBuilder();
   }
 
   static boolean put(SshConnectionBuilder sshConnectionBuilder, InputStream inputStream, String remoteFileName) {
-    LOGGER.info("Uploading data from input stream to remote file {} on host {}", remoteFileName, sshConnectionBuilder.getHost());
+    log.info("Uploading data from input stream to remote file {} on host {}", remoteFileName, sshConnectionBuilder.getHost());
     Session session = getConnectedSession(sshConnectionBuilder);
     ChannelSftp channelSftp = null;
     try {
@@ -35,7 +35,7 @@ public class SshConnectionFactory {
       channelSftp.put(inputStream, remoteFileName);
       return true;
     } catch (JSchException | SftpException e) {
-      LOGGER.warn("Creating remote file {} failed", remoteFileName, e);
+      log.warn("Creating remote file {} failed", remoteFileName, e);
       return false;
     } finally {
       if (channelSftp != null) {
@@ -83,7 +83,7 @@ public class SshConnectionFactory {
       Channel channel = session.openChannel("exec");
 
       String fullCommand = String.join(" ", commandParts);
-      LOGGER.info("Sending command [" + fullCommand + "] to host " + sshConnectionBuilder.getHost());
+      log.info("Sending command [" + fullCommand + "] to host " + sshConnectionBuilder.getHost());
       ((ChannelExec) channel).setCommand(fullCommand);
 
       channel.setInputStream(null);
@@ -116,11 +116,11 @@ public class SshConnectionFactory {
       sshRunResult.setStdout(stdout.toString("UTF-8").trim());
       sshRunResult.setStderr(stderr.toString("UTF-8").trim());
 
-      LOGGER.info("SSH run result: " + sshRunResult);
+      log.info("SSH run result: " + sshRunResult);
 
       return sshRunResult;
     } catch (Exception e) {
-      LOGGER.error("SSH connection issues", e);
+      log.error("SSH connection issues", e);
       throw new RuntimeException("SSH connection issues", e);
     }
   }
@@ -154,7 +154,7 @@ public class SshConnectionFactory {
       session.connect();
       return session;
     } catch (JSchException e) {
-      LOGGER.error("SSH connection issues", e);
+      log.error("SSH connection issues", e);
       throw new RuntimeException("SSH connection issues", e);
     }
   }

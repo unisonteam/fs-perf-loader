@@ -25,7 +25,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import team.unison.remote.WorkerException;
 
 public class S3FsWrapper implements FsWrapper {
-  private static final Logger LOGGER = LoggerFactory.getLogger(S3FsWrapper.class);
+  private static final Logger log = LoggerFactory.getLogger(S3FsWrapper.class);
   private final S3Client s3Client;
   private final String bucket;
   private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
@@ -40,7 +40,7 @@ public class S3FsWrapper implements FsWrapper {
 
     Region region = Region.US_EAST_1;
     try {
-      LOGGER.info("Create S3 client for uri {}", conf.get("s3.uri"));
+      log.info("Create S3 client for uri {}", conf.get("s3.uri"));
       URI s3URI = new URI(conf.get("s3.uri"));
 
       s3Client = S3Client.builder()

@@ -30,11 +30,9 @@ final class FsMoverPropertiesBuilder {
         throw new IllegalArgumentException("Property" + prefix + " host" + " is not set");
       }
 
-      String jvmOptions = props.getProperty(prefix + "jvmoptions", "-Xmx1G");
-
       FsMover fsMover = new FsMoverBuilder()
           .name(fsMoverName)
-          .genericWorkerBuilder(ClientFactory.buildGeneric().sshConnectionBuilder(sshConnectionBuilder.host(host)).jvmOptions(jvmOptions))
+          .genericWorkerBuilder(ClientFactory.buildGeneric().sshConnectionBuilder(sshConnectionBuilder.host(host)))
           .source(props.getProperty(prefix + "source"))
           .target(props.getProperty(prefix + "target"))
           .threads(Integer.parseInt(props.getProperty(prefix + "threads", "8")))

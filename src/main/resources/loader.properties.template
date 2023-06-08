@@ -20,6 +20,11 @@ ssh.key=/home/user/.ssh/private_key
 #connect by password:
 #ssh.password=secret
 
+#optional : prometheus host
+#prometheus.address=host:port
+#optional : buckets for requests histogram (in millis). see default in the example
+#prometheus.buckets=10000,20000,30000,40000,50000,100000,200000,300000,400000,500000,1000000,2000000,5000000,10000000
+
 #optional: configurations. contains S3 connection properties for S3 or additional HDFS client properties for HDFS
 #conf.MYS3.s3.bucket=mybucket
 #conf.MYS3.s3.key=accessKeyId
