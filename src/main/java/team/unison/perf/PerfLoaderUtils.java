@@ -16,7 +16,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class PerfLoaderUtils {
-  private static Properties GLOBAL_PROPERTIES = new Properties();
+  private static final Properties GLOBAL_PROPERTIES = new Properties();
 
   private PerfLoaderUtils() {
   }
@@ -27,7 +27,7 @@ public final class PerfLoaderUtils {
    * position will have 'count' variants (total count^positions strings generated)
    * - prefix{start..end}suffix - this is expanded to prefix+start+suffix, prefix+(start+1)+suffix, ..., prefix+end+suffix
    */
-  static List<String> parseTemplate(String templateString) {
+  public static List<String> parseTemplate(String templateString) {
     String[] partsRaw = templateString.split(",");
     List<String> partsParsed = new ArrayList<>();
 

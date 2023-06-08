@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -14,6 +15,7 @@ import team.unison.remote.WorkerException;
 
 class HdfsFsWrapper implements FsWrapper {
   private static final Logger LOGGER = LoggerFactory.getLogger(HdfsFsWrapper.class);
+  private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
 
   final FileSystem fs;
 
@@ -59,7 +61,14 @@ class HdfsFsWrapper implements FsWrapper {
 
   @Override
   public boolean get(String bucket, String path) {
-    throw new IllegalArgumentException("Not applicable for HDFS");
+    try (FSDataInputStream fis = fs.open(new Path(path))) {
+      while (fis.read(DEVNULL) >= 0) {
+        // nop
+      }
+    } catch (IOException e) {
+      throw WorkerException.wrap(e);
+    }
+    return true;
   }
 
   @Override
@@ -69,6 +78,11 @@ class HdfsFsWrapper implements FsWrapper {
 
   @Override
   public boolean delete(String bucket, String path) {
-    throw new IllegalArgumentException("Not applicable for HDFS");
+    try {
+      fs.delete(new Path(path), true);
+    } catch (IOException e) {
+      throw WorkerException.wrap(e);
+    }
+    return true;
   }
 }

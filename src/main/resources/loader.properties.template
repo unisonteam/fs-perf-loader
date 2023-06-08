@@ -25,6 +25,10 @@ ssh.key=/home/user/.ssh/private_key
 #conf.MYS3.s3.key=accessKeyId
 #conf.MYS3.s3.secret=secretAccessKey
 #conf.MYS3.s3.uri=http://url...
+#it is possible to set S3 endpoint URI in the form of list or template
+#conf.S3.s3.uri=http://host{1..5}.domain:port
+#in case of multiple URIs it's possible to send requests to one of S3 endpoints randomly (default) or to one by one in cycle
+#conf.S3.s3.balance=cycle
 
 fsloader.LOAD.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
 fsloader.LOAD.paths=/tmp/path1,/tmp/path2
