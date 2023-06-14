@@ -19,4 +19,6 @@ public interface Agent extends Remote {
   void move(String path, List<String> arg) throws IOException;
 
   void init(Properties properties) throws IOException;
+
+  void shutdown() throws IOException;
 }

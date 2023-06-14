@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -28,12 +30,14 @@ public final class PrometheusUtils {
   private static final Map<String, Counter> COUNTERS = new ConcurrentHashMap<>();
   private static final Map<String, Histogram> HISTOGRAM_MAP = new ConcurrentHashMap<>();
   private static final String HOST_NAME = System.getProperty("java.rmi.server.hostname"); // set in RemoteMain
-  private static final String PROCESS_NAME = "pefloader";
+  private static final String PROCESS_NAME = "perfloader";
   private static final String JOB_NAME = "perfloaderjob";
   private static final AtomicBoolean INITIALIZED = new AtomicBoolean(false);
-  private static final List<Long> HISTOGRAM_BUCKETS = new ArrayList<>(Arrays.asList(10_000L, 20_000L, 30_000L, 40_000L, 50_000L,
-                                                                                    100_000L, 200_000L, 300_000L, 400_000L, 500_000L,
-                                                                                    1_000_000L, 2_000_000L, 5_000_000L, 10_000_000L));
+  private static final List<Long> HISTOGRAM_BUCKETS = new ArrayList<>(Arrays.asList(10L, 20L, 30L, 40L, 50L,
+                                                                                    100L, 200L, 300L, 400L, 500L,
+                                                                                    1_000L, 2_000L, 5_000L, 10_000L));
+  private static PushGateway PUSH_GATEWAY;
+  private static final Map<String, String> INSTANCE_GROUPING_KEY = new HashMap<>();
 
   private static final int PUSH_PERIOD = 15;
 
@@ -48,8 +52,8 @@ public final class PrometheusUtils {
     }
 
     try {
-      getOperationsCounter(operation, objectSize, success).labels(HOST_NAME, HOST_NAME, PROCESS_NAME, Long.toString(objectSize)).inc();
-      getOperationsHistogram(operation, success).labels(HOST_NAME, HOST_NAME, PROCESS_NAME).observe(elapsedMs);
+      getOperationsCounter(operation, success).labels(HOST_NAME, PROCESS_NAME, Long.toString(objectSize)).inc();
+      getOperationsHistogram(operation, success).labels(HOST_NAME, PROCESS_NAME).observe(elapsedMs);
     } catch (Exception e) {
       log.warn("Exception in recording", e);
     }
@@ -61,17 +65,17 @@ public final class PrometheusUtils {
     return HISTOGRAM_MAP.computeIfAbsent(operationName, n -> Histogram.build()
         .name(operationName)
         .help("Latency of " + operation + " requests.")
-        .labelNames("hostname", "instance", "processname")
+        .labelNames("hostname", "processname")
         .buckets(HISTOGRAM_BUCKETS.stream().mapToDouble(l -> (double) l).toArray())
         .register(COLLECTOR_REGISTRY));
   }
 
-  private static Counter getOperationsCounter(String operation, long objectSize, boolean success) {
+  private static Counter getOperationsCounter(String operation, boolean success) {
     String operationName = String.format("fsloader_%s_%s_operations", success ? "successful" : "failed", operation);
 
     return COUNTERS.computeIfAbsent(operationName, n -> Counter.build()
         .name(n)
-        .labelNames("hostname", "instance", "processname", "objectsize")
+        .labelNames("hostname", "processname", "objectsize")
         .help("Total " + operation + " requests.").register(COLLECTOR_REGISTRY));
   }
 
@@ -90,16 +94,31 @@ public final class PrometheusUtils {
         HISTOGRAM_BUCKETS.addAll(bucketsList);
       }
 
-      PushGateway pg = new PushGateway(prometheusAddress);
+      INSTANCE_GROUPING_KEY.put("instance", HOST_NAME);
+      PUSH_GATEWAY = new PushGateway(prometheusAddress);
 
       EXECUTOR_SERVICE.scheduleAtFixedRate(() -> {
         try {
           log.info("Push collected data");
-          pg.push(COLLECTOR_REGISTRY, JOB_NAME);
+          PUSH_GATEWAY.push(COLLECTOR_REGISTRY, JOB_NAME, INSTANCE_GROUPING_KEY);
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
       }, PUSH_PERIOD, PUSH_PERIOD, TimeUnit.SECONDS);
     }
+  }
+
+  public static synchronized void shutdown() {
+    EXECUTOR_SERVICE.schedule(() -> {
+      try {
+        if (PUSH_GATEWAY != null) {
+          PUSH_GATEWAY.delete(JOB_NAME, INSTANCE_GROUPING_KEY);
+        }
+      } catch (IOException e) {
+        log.warn("Error in shutdown", e);
+      }
+      log.info("Agent stopped at {}", new Date());
+      System.exit(0);
+    }, PUSH_PERIOD * 2, TimeUnit.SECONDS);
   }
 }

@@ -58,7 +58,7 @@ public class FsLoaderBatchRemote {
               long start = System.nanoTime();
               boolean success = runWorkload(fsWrapper, entry.getKey(), entry.getValue(), barr, useTmpFile, command);
               long elapsed = System.nanoTime() - start;
-              PrometheusUtils.record(command.get("operation"), entry.getValue(), success, elapsed / 1_000);
+              PrometheusUtils.record(command.get("operation"), entry.getValue(), success, elapsed / 1_000_000);
               ret[pos.getAndIncrement()] = elapsed * (success ? 1 : -1);
               if (delayInMillis > 0) {
                 Utils.sleep(delayInMillis);

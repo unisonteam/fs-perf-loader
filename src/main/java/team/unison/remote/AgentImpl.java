@@ -79,8 +79,16 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
+  public void shutdown() throws IOException {
+    PrometheusUtils.shutdown();
+  }
+
+  @Override
   public void unreferenced() {
-    log.info("Agent stopped at {}", new Date());
-    System.exit(0);
+    try {
+      shutdown();
+    } catch (IOException e) {
+      throw WorkerException.wrap(e);
+    }
   }
 }

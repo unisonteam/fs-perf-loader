@@ -18,6 +18,16 @@ public class GenericWorkerBuilder implements Serializable {
   private transient SshConnectionBuilder sshConnectionBuilder;
   private static final Map<SshConnectionBuilder, GenericWorker> DEPLOYED_WORKERS = new ConcurrentHashMap<>();
 
+  static {
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> DEPLOYED_WORKERS.values().forEach(w -> {
+      try {
+        w.getAgent().shutdown();
+      } catch (IOException e) {
+        log.warn("Error in shutdown", e);
+      }
+    })));
+  }
+
   GenericWorkerBuilder() {
   }
 
