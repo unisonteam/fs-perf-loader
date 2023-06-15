@@ -284,7 +284,7 @@ public final class FsLoader implements Runnable {
   //    99.9   :   889.07 ms
 
   public void printSummary() {
-    System.out.printf("Loader: %s%n", name);
+    String header = "Loader: " + name;
     for (int cmdNo = 0; cmdNo < workload.size(); cmdNo++) {
       Map<String, String> command = workload.get(cmdNo);
       int totalRequests = count * totalBatches * filesInBatch;
@@ -297,51 +297,15 @@ public final class FsLoader implements Runnable {
         }
       }
 
-      long failedRequests = Arrays.stream(globalResults).filter(l -> l <= 0).count();
-      for (int i = 0; i < globalResults.length; i++) {
-        globalResults[i] = Math.abs(globalResults[i]);
-      }
-
-      System.out.printf("            --- Total Results ---%n");
-      System.out.printf("Operation: %s%n", command.get("operation"));
-      String endpoint = PerfLoaderUtils.getGlobalProperties().getProperty("s3.uri");
-      if (endpoint != null) {
-        System.out.printf("Endpoint: %s", endpoint);
-      }
-      System.out.printf("Concurrency: %d%n", threads * genericWorkerBuilders.size());
-      System.out.printf("Total number of requests: %d%n", totalRequests);
-      System.out.printf("Failed requests: %d%n", failedRequests);
-      System.out.printf("Total elapsed time: %fs%n", ((double) Arrays.stream(globalResults).sum()) / 1_000_000_000);
-      System.out.printf("Average request time: %fms%n", (Arrays.stream(globalResults).average().orElse(0)) / 1_000_000);
-      System.out.printf("Minimum request time: %.2fms%n", ((double) Arrays.stream(globalResults).min().orElse(0)) / 1_000_000);
-      System.out.printf("Maximum request time: %.2fms%n", ((double) Arrays.stream(globalResults).max().orElse(0)) / 1_000_000);
-
       long averageObjectSize = 0;
       String op = command.get("operation");
       if ("put".equalsIgnoreCase(op) || "get".equalsIgnoreCase(op)) {
         averageObjectSize = (long) filesSizes.stream().mapToLong(l -> l).average().orElse(0);
       }
 
-      System.out.printf("Average Object Size: %d%n", averageObjectSize);
-      System.out.printf("Total Object Size: %d%n", averageObjectSize * totalRequests);
-      System.out.printf("Response Time Percentiles%n");
-
-      Arrays.sort(globalResults);
-      long[] parr = new long[]{500,
-                               750,
-                               900,
-                               950,
-                               990,
-                               999};
-      for (long l : parr) {
-        System.out.printf("  %.1f : %.2f ms %n", (float) l / 10, getPercentile(globalResults, ((double) l) / 1000) / 1_000_000);
-      }
+      PerfLoaderUtils.printStatistics(header, command.get("operation"), conf == null ? null : conf.get("s3.uri"),
+                                      threads * genericWorkerBuilders.size(), averageObjectSize, globalResults);
     }
-  }
-
-  public static double getPercentile(long[] arr, double percentile) {
-    int index = (int) Math.ceil(percentile * (double) arr.length);
-    return arr[index - 1];
   }
 
   private Map<String, Long> getBatch(AtomicInteger batchesLeft) {

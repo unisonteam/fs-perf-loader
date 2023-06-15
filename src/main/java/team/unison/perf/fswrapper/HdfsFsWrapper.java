@@ -3,12 +3,16 @@ package team.unison.perf.fswrapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.remote.WorkerException;
@@ -84,5 +88,19 @@ class HdfsFsWrapper implements FsWrapper {
       throw WorkerException.wrap(e);
     }
     return true;
+  }
+
+  @Override
+  public List<String> list(String bucket, String path) {
+    try {
+      List<String> ret = new ArrayList<>();
+      RemoteIterator<LocatedFileStatus> iter = fs.listFiles(new Path(path), true);
+      while (iter.hasNext()) {
+        ret.add(iter.next().getPath().toString());
+      }
+      return ret;
+    } catch (IOException e) {
+      throw WorkerException.wrap(e);
+    }
   }
 }

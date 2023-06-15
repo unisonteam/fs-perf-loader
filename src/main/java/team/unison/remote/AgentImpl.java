@@ -17,8 +17,8 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
+import team.unison.perf.cleaner.FsCleanerRemote;
 import team.unison.perf.loader.FsLoaderBatchRemote;
-import team.unison.perf.mover.FsMoverRemote;
 
 class AgentImpl implements Agent, Unreferenced {
   private static final Logger log = LoggerFactory.getLogger(AgentImpl.class);
@@ -57,12 +57,8 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public void move(String path, List<String> arg) {
-    try {
-      FsMoverRemote.apply(path, arg);
-    } catch (IOException e) {
-      throw WorkerException.wrap(e);
-    }
+  public long[] clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) {
+    return FsCleanerRemote.apply(conf, paths, suffixes, threads);
   }
 
   @Override

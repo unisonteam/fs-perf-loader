@@ -16,7 +16,7 @@ public interface Agent extends Remote {
 
   long[] load(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command) throws IOException;
 
-  void move(String path, List<String> arg) throws IOException;
+  long[] clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) throws IOException;
 
   void init(Properties properties) throws IOException;
 

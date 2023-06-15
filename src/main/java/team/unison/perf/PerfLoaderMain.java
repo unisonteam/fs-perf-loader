@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -12,6 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import team.unison.perf.cleaner.FsCleaner;
 import team.unison.perf.loader.FsLoader;
 import team.unison.remote.SshConnectionBuilder;
 import team.unison.remote.SshConnectionFactory;
@@ -39,25 +39,31 @@ public final class PerfLoaderMain {
     ConfsPropertiesBuilder.build(properties);
     SshConnectionBuilder sshConnectionBuilder = sshConnectionBuilder(properties);
 
-    Map<String, FsLoader> fsLoaders = FsLoaderPropertiesBuilder.build(properties, sshConnectionBuilder);
-    ExecutorService executorService = Executors.newFixedThreadPool(fsLoaders.size());
+    List<FsLoader> fsLoaders = FsLoaderPropertiesBuilder.build(properties, sshConnectionBuilder);
 
-    List<Callable<Object>> callables = fsLoaders.values().stream()
-        .map(fl -> Executors.callable(fl::run)
-        )
-        .collect(Collectors.toList());
+    if (!fsLoaders.isEmpty()) {
+      ExecutorService executorService = Executors.newFixedThreadPool(fsLoaders.size());
 
-    try {
+      List<Callable<Object>> callables = fsLoaders.stream()
+          .map(Executors::callable)
+          .collect(Collectors.toList());
+
       try {
-        executorService.invokeAll(callables);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e); // NOPMD
+        try {
+          executorService.invokeAll(callables);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e); // NOPMD
+        }
+      } finally {
+        executorService.shutdownNow();
       }
-    } finally {
-      executorService.shutdownNow();
+
+      fsLoaders.forEach(FsLoader::printSummary);
     }
 
-    fsLoaders.values().forEach(FsLoader::printSummary);
+    List<FsCleaner> fsCleaners = FsCleanerPropertiesBuilder.build(properties, sshConnectionBuilder);
+    fsCleaners.forEach(FsCleaner::run);
+    fsCleaners.forEach(FsCleaner::printSummary);
   }
 
   private static SshConnectionBuilder sshConnectionBuilder(Properties properties) {

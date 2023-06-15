@@ -3,7 +3,9 @@ package team.unison.perf.fswrapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -20,8 +22,11 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import team.unison.remote.WorkerException;
 
 public class S3FsWrapper implements FsWrapper {
@@ -115,6 +120,17 @@ public class S3FsWrapper implements FsWrapper {
                                                                           .build());
 
     return deleteObjectResponse.sdkHttpResponse().isSuccessful();
+  }
+
+  @Override
+  public List<String> list(String bucket, String path) {
+    ListObjectsResponse listObjectsResponse = s3Client.listObjects(ListObjectsRequest.builder()
+                                                                       .bucket(toBucket(bucket))
+                                                                       .prefix(toKey(path))
+                                                                       .maxKeys(Integer.MAX_VALUE)
+                                                                       .build());
+
+    return listObjectsResponse.contents().stream().map(S3Object::key).collect(Collectors.toList());
   }
 
   private String toKey(String path) {

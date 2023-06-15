@@ -3,9 +3,7 @@ package team.unison.perf;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
@@ -25,8 +23,8 @@ final class FsLoaderPropertiesBuilder {
   private FsLoaderPropertiesBuilder() {
   }
 
-  static Map<String, FsLoader> build(Properties props, SshConnectionBuilder sshConnectionBuilder) throws IOException {
-    Map<String, FsLoader> fsLoaders = new HashMap<>();
+  static List<FsLoader> build(Properties props, SshConnectionBuilder sshConnectionBuilder) throws IOException {
+    List<FsLoader> fsLoaders = new ArrayList<>();
     Set<String> fsLoaderNames = props.stringPropertyNames().stream().filter(s -> s.startsWith("fsloader.")).map(s -> s.split("\\.")[1])
         .collect(Collectors.toSet());
 
@@ -61,7 +59,7 @@ final class FsLoaderPropertiesBuilder {
           .fill(props.getProperty(prefix + "fill", "random"))
           .createFsLoader();
 
-      fsLoaders.put(fsLoaderName, fsLoader);
+      fsLoaders.add(fsLoader);
     }
     return fsLoaders;
   }

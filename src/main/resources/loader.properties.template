@@ -88,16 +88,12 @@ fsloader.LOAD.batch.timeout=600
 #optional: fill files with random data (=random) or with a predefined char (=0 for zeroes, =97 for 'a', etc). default: random
 #fsloader.LOAD.fill=random
 
-#mover source and target are single path, not a list of paths
-#if you want to move between several directories in parallel, either give their common root as an argument or create several movers
-#if target is '/dev/null', files will be removed
-fsmover.MV.host=fat01-vm1.sbrf.ru
-fsmover.MV.source=/tmp/path1
-fsmover.MV.target=/tmp/path3
-#delay in seconds to start moving
-fsmover.MV.delay=300
-fsmover.MV.period=60
-fsmover.MV.suffixes=good
-fsmover.MV.remove.suffix=false
-#number of threads (default 8)
-#fsmover.MV.threads=10
+#FS cleaner. Runs on one host only
+#fscleaner.CLEAN.paths=/tmp/path{19..21}
+#fscleaner.CLEAN.host=myhost
+#optional: same conf as for loader
+#fscleaner.CLEAN.conf=S3
+#optional, default - all files
+#fscleaner.CLEAN.suffixes=.bak,.old
+#optional, default - 8 threads
+#fscleaner.CLEAN.threads=10

@@ -1,5 +1,7 @@
 package team.unison.perf.fswrapper;
 
+import java.util.List;
+
 public interface FsWrapper {
   boolean create(String bucket, String path, long length, byte[] data, boolean useTmpFile);
 
@@ -10,4 +12,6 @@ public interface FsWrapper {
   boolean head(String bucket, String path);
 
   boolean delete(String bucket, String path);
+
+  List<String> list(String bucket, String path);
 }
