@@ -57,13 +57,10 @@ public final class PerfLoaderMain {
       } finally {
         executorService.shutdownNow();
       }
-
-      fsLoaders.forEach(FsLoader::printSummary);
     }
 
     List<FsCleaner> fsCleaners = FsCleanerPropertiesBuilder.build(properties, sshConnectionBuilder);
     fsCleaners.forEach(FsCleaner::run);
-    fsCleaners.forEach(FsCleaner::printSummary);
   }
 
   private static SshConnectionBuilder sshConnectionBuilder(Properties properties) {

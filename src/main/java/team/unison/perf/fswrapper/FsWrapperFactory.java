@@ -42,7 +42,7 @@ public class FsWrapperFactory {
   }
 
   private static FsWrapper newInstance(String path, Map<String, String> conf) {
-    if (conf.containsKey("s3.bucket")) {
+    if (conf.containsKey("s3.uri")) {
       return new S3FsWrapper(conf);
     } else {
       return new HdfsFsWrapper(path, conf);

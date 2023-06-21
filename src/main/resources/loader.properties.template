@@ -26,7 +26,6 @@ ssh.key=/home/user/.ssh/private_key
 #prometheus.buckets=10,20,30,40,50,100,200,300,400,500,1000,2000,5000,10000
 
 #optional: configurations. contains S3 connection properties for S3 or additional HDFS client properties for HDFS
-#conf.MYS3.s3.bucket=mybucket
 #conf.MYS3.s3.key=accessKeyId
 #conf.MYS3.s3.secret=secretAccessKey
 #conf.MYS3.s3.uri=http://url...
@@ -46,8 +45,11 @@ fsloader.LOAD.paths=/tmp/path1,/tmp/path2
 #/tmp/path0/path0,/tmp/path1/path0,/tmp/path0/path1,/tmp/path1/path1
 #alternative way to specify paths (and hosts): '{start..end}'
 #fsloader.LOAD.paths=/tmp/path{19..21}
-#will be expanded to
-#/tmp/path19,/tmp/path20,/tmp/path21
+#will be expanded to /tmp/path19,/tmp/path20,/tmp/path21
+#if this is an S3 configuration, first part of the path will be bucket name, remaining: key prefix. first slash will be ignored. for example:
+#paths=/abc/cde/def : bucket: abc, prefix: cde/def
+#paths=abc : bucket: abc, prefix: none
+#paths=/abc/cde,/def/efg : load will go to bucket abc with prefix cde and to bucket def with prefix efg
 #optional: set conf configured above
 #fsloader.LOAD.conf=MYS3
 #optional: workload json (s3tester format https://github.com/s3tester/s3tester/blob/master/example/workload.json)
@@ -75,7 +77,6 @@ fsloader.LOAD.batch.count=100
 fsloader.LOAD.batch.file.sizes=10:10M,5:10K,85:50K
 #percentage
 fsloader.LOAD.batch.file.suffixes=90:good,10:bad
-fsloader.LOAD.batch.timeout=600
 #optional: write data to a temporary _COPYING_ file and rename if to the final destination at the end (default: true)
 #applicable to HDFS only
 #fsloader.LOAD.usetmpfile=true

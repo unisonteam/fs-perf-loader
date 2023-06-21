@@ -1,5 +1,7 @@
 package team.unison.perf;
 
+import static team.unison.remote.Utils.sleep;
+
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Histogram;
@@ -8,7 +10,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,51 +34,52 @@ public final class PrometheusUtils {
   private static final String HOST_NAME = System.getProperty("java.rmi.server.hostname"); // set in RemoteMain
   private static final String PROCESS_NAME = "perfloader";
   private static final String JOB_NAME = "perfloaderjob";
-  private static final AtomicBoolean INITIALIZED = new AtomicBoolean(false);
   private static final List<Long> HISTOGRAM_BUCKETS = new ArrayList<>(Arrays.asList(10L, 20L, 30L, 40L, 50L,
                                                                                     100L, 200L, 300L, 400L, 500L,
                                                                                     1_000L, 2_000L, 5_000L, 10_000L));
   private static PushGateway PUSH_GATEWAY;
   private static final Map<String, String> INSTANCE_GROUPING_KEY = new HashMap<>();
 
-  private static final int PUSH_PERIOD = 15;
+  private static final int PUSH_PERIOD_SECONDS = 15;
+  private static final AtomicBoolean INITIALIZED = new AtomicBoolean(false);
+  private static final AtomicReference<String> ACTIVE_OPERATION = new AtomicReference<>();
 
   private PrometheusUtils() {
   }
 
   private static final CollectorRegistry COLLECTOR_REGISTRY = new CollectorRegistry();
 
-  public static void record(String operation, long objectSize, boolean success, long elapsedMs) {
+  public static void record(long objectSize, boolean success, long elapsedMs) {
     if (!INITIALIZED.get()) {
       return;
     }
 
     try {
-      getOperationsCounter(operation, success).labels(HOST_NAME, PROCESS_NAME, Long.toString(objectSize)).inc();
-      getOperationsHistogram(operation, success).labels(HOST_NAME, PROCESS_NAME).observe(elapsedMs);
+      getOperationsCounter(success).labels(HOST_NAME, PROCESS_NAME, Long.toString(objectSize)).inc();
+      getOperationsHistogram(success).labels(HOST_NAME, PROCESS_NAME).observe(elapsedMs);
     } catch (Exception e) {
       log.warn("Exception in recording", e);
     }
   }
 
-  private static Histogram getOperationsHistogram(String operation, boolean success) {
-    String operationName = String.format("fsloader_%s_%s_operations_latency_ms", success ? "successful" : "failed", operation);
+  private static Histogram getOperationsHistogram(boolean success) {
+    String operationName = String.format("fsloader_%s_%s_operations_latency_ms", success ? "successful" : "failed", ACTIVE_OPERATION.get());
 
     return HISTOGRAM_MAP.computeIfAbsent(operationName, n -> Histogram.build()
         .name(operationName)
-        .help("Latency of " + operation + " requests.")
+        .help("Latency of " + ACTIVE_OPERATION.get() + " requests.")
         .labelNames("hostname", "processname")
         .buckets(HISTOGRAM_BUCKETS.stream().mapToDouble(l -> (double) l).toArray())
         .register(COLLECTOR_REGISTRY));
   }
 
-  private static Counter getOperationsCounter(String operation, boolean success) {
-    String operationName = String.format("fsloader_%s_%s_operations", success ? "successful" : "failed", operation);
+  private static Counter getOperationsCounter(boolean success) {
+    String operationName = String.format("fsloader_%s_%s_operations", success ? "successful" : "failed", ACTIVE_OPERATION.get());
 
     return COUNTERS.computeIfAbsent(operationName, n -> Counter.build()
         .name(n)
         .labelNames("hostname", "processname", "objectsize")
-        .help("Total " + operation + " requests.").register(COLLECTOR_REGISTRY));
+        .help("Total " + ACTIVE_OPERATION.get() + " requests.").register(COLLECTOR_REGISTRY));
   }
 
   public static synchronized void init(Properties properties) {
@@ -104,21 +107,34 @@ public final class PrometheusUtils {
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
-      }, PUSH_PERIOD, PUSH_PERIOD, TimeUnit.SECONDS);
+      }, PUSH_PERIOD_SECONDS, PUSH_PERIOD_SECONDS, TimeUnit.SECONDS);
     }
   }
 
-  public static synchronized void shutdown() {
-    EXECUTOR_SERVICE.schedule(() -> {
+  public static void shutdown() {
+    collectStatsFor(null);
+  }
+
+  public static synchronized void collectStatsFor(String operation) {
+    if (!INITIALIZED.get()) {
+      return;
+    }
+    if ((ACTIVE_OPERATION.get() != null) && !ACTIVE_OPERATION.get().equals(operation)) {
       try {
-        if (PUSH_GATEWAY != null) {
-          PUSH_GATEWAY.delete(JOB_NAME, INSTANCE_GROUPING_KEY);
+        PUSH_GATEWAY.push(COLLECTOR_REGISTRY, JOB_NAME, INSTANCE_GROUPING_KEY);
+        COUNTERS.values().forEach(COLLECTOR_REGISTRY::unregister);
+        HISTOGRAM_MAP.values().forEach(COLLECTOR_REGISTRY::unregister);
+        COUNTERS.clear();
+        HISTOGRAM_MAP.clear();
+        // give some time not to overlap results from different operations but to clear statistics
+        // (1.5 * push period)
+        if (operation != null) { // null == cleanup after all operations
+          sleep(PUSH_PERIOD_SECONDS * 1500);
         }
       } catch (IOException e) {
-        log.warn("Error in shutdown", e);
+        throw new UncheckedIOException(e);
       }
-      log.info("Agent stopped at {}", new Date());
-      System.exit(0);
-    }, PUSH_PERIOD * 2, TimeUnit.SECONDS);
+    }
+    ACTIVE_OPERATION.set(operation);
   }
 }

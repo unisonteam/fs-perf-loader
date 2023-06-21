@@ -81,10 +81,7 @@ class AgentImpl implements Agent, Unreferenced {
 
   @Override
   public void unreferenced() {
-    try {
-      shutdown();
-    } catch (IOException e) {
-      throw WorkerException.wrap(e);
-    }
+    log.info("Agent stopped at {}", new Date());
+    System.exit(0);
   }
 }

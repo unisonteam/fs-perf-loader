@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
+import team.unison.perf.fswrapper.S3FsWrapper;
 import team.unison.remote.WorkerException;
 
 public class FsCleanerRemote {
@@ -27,8 +28,10 @@ public class FsCleanerRemote {
 
     List<Long> ret = new ArrayList<>();
 
+    PrometheusUtils.collectStatsFor("delete");
     try {
       for (String path : paths) {
+        String bucket = S3FsWrapper.toBucketAndKey(null, path)[0];
         // directories are left after removal of objects - call clean several times to purge all
         for (int i = 0; i < 1000; i++) {
           List<String> subPaths = fsWrapper.list(null, path);
@@ -44,7 +47,7 @@ public class FsCleanerRemote {
               continue;
             }
 
-            rmCalls.add(() -> deleteAndRecord(fsWrapper, subPath));
+            rmCalls.add(() -> deleteAndRecord(fsWrapper, bucket, subPath));
           }
           List<Future<Object>> futures = executorService.invokeAll(rmCalls);
           List<Long> batchResult = futures.stream().map(f -> {
@@ -69,17 +72,17 @@ public class FsCleanerRemote {
       if (!fileSuffix.isPresent()) {
         continue;
       }
-      ret.add(deleteAndRecord(fsWrapper, path));
+      ret.add(deleteAndRecord(fsWrapper, null, path));
     }
 
     return ret.stream().mapToLong(o -> o).toArray();
   }
 
-  private static long deleteAndRecord(FsWrapper fsWrapper, String path) {
+  private static long deleteAndRecord(FsWrapper fsWrapper, String bucket, String path) {
     long start = System.nanoTime();
-    boolean success = fsWrapper.delete(null, path);
+    boolean success = fsWrapper.delete(bucket, path);
     long elapsed = System.nanoTime() - start;
-    PrometheusUtils.record("delete", 0, success, elapsed / 1_000_000);
+    PrometheusUtils.record(0, success, elapsed / 1_000_000);
     return elapsed * (success ? 1 : -1);
   }
 }

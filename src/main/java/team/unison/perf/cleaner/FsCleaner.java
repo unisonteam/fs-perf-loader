@@ -57,6 +57,7 @@ public final class FsCleaner implements Runnable {
       throw WorkerException.wrap(e);
     }
     log.info("End cleaner {} at host {}, cleaner took {}", name, genericWorker.getHost(), Duration.between(before, Instant.now()));
+    printSummary();
   }
 
   @Override

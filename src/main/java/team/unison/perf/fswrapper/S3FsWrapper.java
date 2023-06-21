@@ -3,6 +3,7 @@ package team.unison.perf.fswrapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -12,6 +13,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
@@ -32,12 +34,9 @@ import team.unison.remote.WorkerException;
 public class S3FsWrapper implements FsWrapper {
   private static final Logger log = LoggerFactory.getLogger(S3FsWrapper.class);
   private final S3Client s3Client;
-  private final String bucket;
   private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
 
   public S3FsWrapper(Map<String, String> conf) {
-    this.bucket = conf.get("s3.bucket");
-
     AwsBasicCredentials awsBasicCredentials = AwsBasicCredentials.create(conf.get("s3.key"),
                                                                          conf.get("s3.secret"));
 
@@ -53,7 +52,9 @@ public class S3FsWrapper implements FsWrapper {
           .region(region)
           .endpointOverride(s3URI)
           .forcePathStyle(true)
-          .build();
+          .httpClientBuilder(ApacheHttpClient.builder()
+                                 .connectionTimeout(Duration.ofMinutes(10))
+                                 .socketTimeout(Duration.ofMinutes(10))).build();
     } catch (URISyntaxException e) {
       throw WorkerException.wrap(e);
     }
@@ -61,9 +62,10 @@ public class S3FsWrapper implements FsWrapper {
 
   @Override
   public boolean create(String bucket, String path, long length, byte[] data, boolean useTmpFile) {
+    String[] bucketAndKey = toBucketAndKey(bucket, path);
     PutObjectResponse putObjectResponse = s3Client.putObject(PutObjectRequest.builder()
-                                                                 .bucket(toBucket(bucket))
-                                                                 .key(toKey(path))
+                                                                 .bucket(bucketAndKey[0])
+                                                                 .key(bucketAndKey[1])
                                                                  .build(),
                                                              RequestBody.fromInputStream(new EndlessInputStream(data), length));
     return putObjectResponse.sdkHttpResponse().isSuccessful();
@@ -71,11 +73,13 @@ public class S3FsWrapper implements FsWrapper {
 
   @Override
   public boolean copy(String sourceBucket, String bucket, String path) {
+    String[] sourceBucketAndKey = toBucketAndKey(sourceBucket, path);
+    String[] destinationBucketAndKey = toBucketAndKey(bucket, path);
     CopyObjectResponse copyObjectResponse = s3Client.copyObject(CopyObjectRequest.builder()
-                                                                    .sourceBucket(sourceBucket)
-                                                                    .destinationBucket(toBucket(bucket))
-                                                                    .sourceKey(toKey(path))
-                                                                    .destinationKey(toKey(path))
+                                                                    .sourceBucket(sourceBucketAndKey[0])
+                                                                    .destinationBucket(destinationBucketAndKey[1])
+                                                                    .sourceKey(sourceBucketAndKey[1])
+                                                                    .destinationKey(destinationBucketAndKey[1])
                                                                     .build());
 
     return copyObjectResponse.sdkHttpResponse().isSuccessful();
@@ -83,9 +87,10 @@ public class S3FsWrapper implements FsWrapper {
 
   @Override
   public boolean get(String bucket, String path) {
+    String[] bucketAndKey = toBucketAndKey(bucket, path);
     ResponseInputStream<GetObjectResponse> getObjectResponse = s3Client.getObject(GetObjectRequest.builder()
-                                                                                      .bucket(toBucket(bucket))
-                                                                                      .key(toKey(path))
+                                                                                      .bucket(bucketAndKey[0])
+                                                                                      .key(bucketAndKey[1])
                                                                                       .build());
 
     if (!getObjectResponse.response().sdkHttpResponse().isSuccessful()) {
@@ -105,18 +110,20 @@ public class S3FsWrapper implements FsWrapper {
 
   @Override
   public boolean head(String bucket, String path) {
+    String[] bucketAndKey = toBucketAndKey(bucket, path);
     HeadObjectResponse headObjectResponse = s3Client.headObject(HeadObjectRequest.builder()
-                                                                    .bucket(toBucket(bucket))
-                                                                    .key(toKey(path))
+                                                                    .bucket(bucketAndKey[0])
+                                                                    .key(bucketAndKey[1])
                                                                     .build());
     return headObjectResponse.sdkHttpResponse().isSuccessful();
   }
 
   @Override
   public boolean delete(String bucket, String path) {
+    String[] bucketAndKey = toBucketAndKey(bucket, path);
     DeleteObjectResponse deleteObjectResponse = s3Client.deleteObject(DeleteObjectRequest.builder()
-                                                                          .bucket(toBucket(bucket))
-                                                                          .key(toKey(path))
+                                                                          .bucket(bucketAndKey[0])
+                                                                          .key(bucketAndKey[1])
                                                                           .build());
 
     return deleteObjectResponse.sdkHttpResponse().isSuccessful();
@@ -124,20 +131,23 @@ public class S3FsWrapper implements FsWrapper {
 
   @Override
   public List<String> list(String bucket, String path) {
+    String[] bucketAndKey = toBucketAndKey(bucket, path);
     ListObjectsResponse listObjectsResponse = s3Client.listObjects(ListObjectsRequest.builder()
-                                                                       .bucket(toBucket(bucket))
-                                                                       .prefix(toKey(path))
+                                                                       .bucket(bucketAndKey[0])
+                                                                       .prefix(bucketAndKey[1])
                                                                        .maxKeys(Integer.MAX_VALUE)
                                                                        .build());
 
     return listObjectsResponse.contents().stream().map(S3Object::key).collect(Collectors.toList());
   }
 
-  private String toKey(String path) {
-    return (path.charAt(0) == '/') ? path.substring(1) : path;
-  }
-
-  private String toBucket(String bucket) {
-    return bucket != null ? bucket : this.bucket;
+  public static String[] toBucketAndKey(String bucket, String path) {
+    String pathNoLeadingSlash = (path.charAt(0) == '/') ? path.substring(1) : path;
+    if (bucket != null) {
+      return new String[]{bucket,
+                          pathNoLeadingSlash};
+    }
+    // should always contain slash because it's a full path with leaf file name
+    return pathNoLeadingSlash.split("/", 2);
   }
 }

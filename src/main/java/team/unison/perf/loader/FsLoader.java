@@ -15,7 +15,7 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.slf4j.Logger;
@@ -208,25 +208,31 @@ public final class FsLoader implements Runnable {
       }
       log.info("Start load {}{}", name, (count == 1) ? "" : ": " + (i + 1));
       runSingle(genericWorkers);
+      printSummary();
     }
     log.info("Load {} ended", name);
   }
 
   private void runSingle(List<GenericWorker> genericWorkers) {
     ExecutorService executorService = Executors.newFixedThreadPool(genericWorkers.size());
+    List<GenericWorker> workersCopy = new ArrayList<>(genericWorkers);
+    loadResults.clear();
 
     try {
       try {
         for (Map<String, String> command : workload) {
-          AtomicInteger batchesLeft = new AtomicInteger(totalBatches);
-          List<long[]> commandResults = new ArrayList<>();
-          loadResults.add(commandResults);
-          List<Callable<Object>> callables = genericWorkers.stream()
-              .map(fw -> Executors.callable(
-                  () -> runBatches(fw, command, commandResults, batchesLeft))
-              )
+          List<Callable<long[]>> callables = filesInBatches.stream()
+              .map(batch -> ((Callable<long[]>) () -> runBatch(workersCopy, command, batch)))
               .collect(Collectors.toList());
-          executorService.invokeAll(callables);
+          List<Future<long[]>> futures = executorService.invokeAll(callables);
+          List<long[]> commandResults = futures.stream().map(f -> {
+            try {
+              return f.get();
+            } catch (Exception e) {
+              throw WorkerException.wrap(e);
+            }
+          }).collect(Collectors.toList());
+          loadResults.add(commandResults);
         }
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
@@ -236,31 +242,34 @@ public final class FsLoader implements Runnable {
     }
   }
 
-  private void runBatches(GenericWorker fw, Map<String, String> command, List<long[]> commandResults, AtomicInteger batchesLeft) {
-    while (true) {
-      Map<String, Long> batch = getBatch(batchesLeft);
-      if (batch == null) {
-        return;
-      }
-      // need to pass number of threads and other control information as well
+  private long[] runBatch(List<GenericWorker> workersCopy, Map<String, String> command, Map<String, Long> batch) {
+    GenericWorker genericWorker;
+    long[] loadResult;
+    synchronized (workersCopy) {
+      genericWorker = workersCopy.remove(workersCopy.size() - 1);
+    }
+    try {
       batch.put(FsLoaderBatchRemote.THREAD_NUMBER_KEY, (long) threads);
       batch.put(FsLoaderBatchRemote.USE_TMP_FILE_KEY, useTmpFile ? 1 : 0L);
       batch.put(FsLoaderBatchRemote.LOAD_DELAY_IN_MILLIS_KEY, loadDelay.toMillis());
       batch.put(FsLoaderBatchRemote.FILL_KEY, "random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
 
-      log.info("Start loader batch for command '{}' at host {}", command.get("operation"), fw.getHost());
+      log.info("Start loader batch for command '{}' at host {}", command.get("operation"), genericWorker.getHost());
       Instant before = Instant.now();
       try {
-        long[] loadResult = fw.getAgent().load(conf, batch, command);
-        synchronized (commandResults) {
-          commandResults.add(loadResult);
-        }
+        loadResult = genericWorker.getAgent().load(conf, batch, command);
       } catch (IOException e) {
         throw WorkerException.wrap(e);
       }
       log.info("End loader batch for command '{}' at host {}, batch took {}", command.get("operation"),
-               fw.getHost(), Duration.between(before, Instant.now()));
+               genericWorker.getHost(), Duration.between(before, Instant.now()));
+    } finally {
+      synchronized (workersCopy) {
+        workersCopy.add(genericWorker);
+      }
     }
+
+    return loadResult;
   }
 
   //  Concurrency: 20
@@ -287,7 +296,7 @@ public final class FsLoader implements Runnable {
     String header = "Loader: " + name;
     for (int cmdNo = 0; cmdNo < workload.size(); cmdNo++) {
       Map<String, String> command = workload.get(cmdNo);
-      int totalRequests = count * totalBatches * filesInBatch;
+      int totalRequests = totalBatches * filesInBatch;
       long[] globalResults = new long[totalRequests];
       synchronized (loadResults) {
         int pos = 0;
@@ -306,16 +315,6 @@ public final class FsLoader implements Runnable {
       PerfLoaderUtils.printStatistics(header, command.get("operation"), conf == null ? null : conf.get("s3.uri"),
                                       threads * genericWorkerBuilders.size(), averageObjectSize, globalResults);
     }
-  }
-
-  private Map<String, Long> getBatch(AtomicInteger batchesLeft) {
-    int batchNo = batchesLeft.decrementAndGet();
-
-    if (batchNo < 0) {
-      return null;
-    }
-
-    return filesInBatches.get(batchNo);
   }
 
   private static long toSize(String s) {
