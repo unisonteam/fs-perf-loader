@@ -104,11 +104,15 @@ public final class PerfLoaderUtils {
     List<Map<String, String>> ret = new ArrayList<>();
     String workloadJson = new String(Files.readAllBytes(Paths.get(workloadPath)));
     JsonElement root = new JsonParser().parse(workloadJson);
-    for (JsonElement jsonElement : root.getAsJsonObject().get("workload").getAsJsonArray()) {
-      Map<String, String> map = new HashMap();
-      map = (Map<String, String>) new Gson().fromJson(jsonElement, map.getClass());
 
-      ret.add(map);
+    String workloadPropertyName = root.getAsJsonObject().has("workload") ? "workload" : "mixedWorkload";
+
+    for (JsonElement jsonElement : root.getAsJsonObject().get(workloadPropertyName).getAsJsonArray()) {
+      Map<String, Object> map = new HashMap();
+      map = new Gson().fromJson(jsonElement, map.getClass());
+      Map<String, String> stringMap = new HashMap();
+      map.entrySet().forEach(e -> stringMap.put(e.getKey(), e.getValue().toString()));
+      ret.add(stringMap);
     }
 
     return ret;
@@ -151,5 +155,3 @@ public final class PerfLoaderUtils {
     return arr[index - 1];
   }
 }
-
-

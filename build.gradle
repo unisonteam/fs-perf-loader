@@ -1,7 +1,7 @@
 apply plugin: 'java'
 
 group = 'team.unison'
-version = '1.0.7'
+version = '1.0.8'
 def formatGMT = new java.text.SimpleDateFormat("yyyy-MM-dd-HH:mm:ss")
 formatGMT.setTimeZone(TimeZone.getTimeZone("GMT"))
 def libraryVersion = version + "-" + formatGMT.format(new Date())

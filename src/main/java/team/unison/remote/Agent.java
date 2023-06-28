@@ -14,7 +14,9 @@ public interface Agent extends Remote {
 
   String info() throws IOException;
 
-  long[] load(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command) throws IOException;
+  long[] runCommand(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command) throws IOException;
+
+  List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload) throws IOException;
 
   long[] clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) throws IOException;
 

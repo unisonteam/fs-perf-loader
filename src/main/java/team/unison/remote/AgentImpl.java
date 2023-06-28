@@ -52,8 +52,13 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public long[] load(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command) {
-    return FsLoaderBatchRemote.apply(conf, arg, command);
+  public long[] runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command) {
+    return FsLoaderBatchRemote.runCommand(conf, batch, command);
+  }
+
+  @Override
+  public List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload) {
+    return FsLoaderBatchRemote.runMixedWorkload(conf, batch, workload);
   }
 
   @Override
@@ -76,7 +81,7 @@ class AgentImpl implements Agent, Unreferenced {
 
   @Override
   public void shutdown() throws IOException {
-    PrometheusUtils.shutdown();
+    // PrometheusUtils.shutdown();
   }
 
   @Override

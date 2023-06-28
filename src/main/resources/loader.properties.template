@@ -52,7 +52,8 @@ fsloader.LOAD.paths=/tmp/path1,/tmp/path2
 #paths=/abc/cde,/def/efg : load will go to bucket abc with prefix cde and to bucket def with prefix efg
 #optional: set conf configured above
 #fsloader.LOAD.conf=MYS3
-#optional: workload json (s3tester format https://github.com/s3tester/s3tester/blob/master/example/workload.json)
+#optional: workload json (s3tester format https://github.com/s3tester/s3tester/blob/master/example/workload.json
+#or mixed workload   https://github.com/s3tester/s3tester)
 #fsloader.LOAD.workload=path/to/workload
 
 #total threads, not for each path

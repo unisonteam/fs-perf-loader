@@ -220,19 +220,41 @@ public final class FsLoader implements Runnable {
 
     try {
       try {
-        for (Map<String, String> command : workload) {
-          List<Callable<long[]>> callables = filesInBatches.stream()
-              .map(batch -> ((Callable<long[]>) () -> runBatch(workersCopy, command, batch)))
+        if (workload.get(0).containsKey("operationType")) {
+          List<Callable<List<long[]>>> callables = filesInBatches.stream()
+              .map(batch -> ((Callable<List<long[]>>) () -> runMixedWorkload(workersCopy, batch)))
               .collect(Collectors.toList());
-          List<Future<long[]>> futures = executorService.invokeAll(callables);
-          List<long[]> commandResults = futures.stream().map(f -> {
+          List<Future<List<long[]>>> futures = executorService.invokeAll(callables);
+          List<List<long[]>> commandResults = futures.stream().map(f -> {
             try {
               return f.get();
             } catch (Exception e) {
               throw WorkerException.wrap(e);
             }
           }).collect(Collectors.toList());
-          loadResults.add(commandResults);
+          for (List<long[]> commandResult : commandResults) {
+            for (int i = 0; i < commandResult.size(); i++) {
+              if (loadResults.size() <= i) {
+                loadResults.add(new ArrayList<>());
+              }
+              loadResults.get(i).add(commandResult.get(i));
+            }
+          }
+        } else { // regular workload
+          for (Map<String, String> command : workload) {
+            List<Callable<long[]>> callables = filesInBatches.stream()
+                .map(batch -> ((Callable<long[]>) () -> runCommand(workersCopy, command, batch)))
+                .collect(Collectors.toList());
+            List<Future<long[]>> futures = executorService.invokeAll(callables);
+            List<long[]> commandResults = futures.stream().map(f -> {
+              try {
+                return f.get();
+              } catch (Exception e) {
+                throw WorkerException.wrap(e);
+              }
+            }).collect(Collectors.toList());
+            loadResults.add(commandResults);
+          }
         }
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
@@ -242,9 +264,9 @@ public final class FsLoader implements Runnable {
     }
   }
 
-  private long[] runBatch(List<GenericWorker> workersCopy, Map<String, String> command, Map<String, Long> batch) {
+  private List<long[]> runMixedWorkload(List<GenericWorker> workersCopy, Map<String, Long> batch) {
     GenericWorker genericWorker;
-    long[] loadResult;
+    List<long[]> loadResult;
     synchronized (workersCopy) {
       genericWorker = workersCopy.remove(workersCopy.size() - 1);
     }
@@ -254,15 +276,12 @@ public final class FsLoader implements Runnable {
       batch.put(FsLoaderBatchRemote.LOAD_DELAY_IN_MILLIS_KEY, loadDelay.toMillis());
       batch.put(FsLoaderBatchRemote.FILL_KEY, "random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
 
-      log.info("Start loader batch for command '{}' at host {}", command.get("operation"), genericWorker.getHost());
+      log.info("Start mixed workload at host {}", genericWorker.getHost());
       Instant before = Instant.now();
-      try {
-        loadResult = genericWorker.getAgent().load(conf, batch, command);
-      } catch (IOException e) {
-        throw WorkerException.wrap(e);
-      }
-      log.info("End loader batch for command '{}' at host {}, batch took {}", command.get("operation"),
-               genericWorker.getHost(), Duration.between(before, Instant.now()));
+      loadResult = genericWorker.getAgent().runMixedWorkload(conf, batch, workload);
+      log.info("End mixed workload at host {}, batch took {}", genericWorker.getHost(), Duration.between(before, Instant.now()));
+    } catch (IOException e) {
+      throw WorkerException.wrap(e);
     } finally {
       synchronized (workersCopy) {
         workersCopy.add(genericWorker);
@@ -270,6 +289,36 @@ public final class FsLoader implements Runnable {
     }
 
     return loadResult;
+  }
+
+  private long[] runCommand(List<GenericWorker> workersCopy, Map<String, String> command, Map<String, Long> batch) {
+    GenericWorker genericWorker;
+    long[] commandResult;
+    synchronized (workersCopy) {
+      genericWorker = workersCopy.remove(workersCopy.size() - 1);
+    }
+    try {
+      batch.put(FsLoaderBatchRemote.THREAD_NUMBER_KEY, (long) threads);
+      batch.put(FsLoaderBatchRemote.USE_TMP_FILE_KEY, useTmpFile ? 1 : 0L);
+      batch.put(FsLoaderBatchRemote.LOAD_DELAY_IN_MILLIS_KEY, loadDelay.toMillis());
+      batch.put(FsLoaderBatchRemote.FILL_KEY, "random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
+
+      log.info("Start batch for command '{}' at host {}", command.get("operation"), genericWorker.getHost());
+      Instant before = Instant.now();
+      try {
+        commandResult = genericWorker.getAgent().runCommand(conf, batch, command);
+      } catch (IOException e) {
+        throw WorkerException.wrap(e);
+      }
+      log.info("End batch for command '{}' at host {}, batch took {}", command.get("operation"),
+               genericWorker.getHost(), Duration.between(before, Instant.now()));
+    } finally {
+      synchronized (workersCopy) {
+        workersCopy.add(genericWorker);
+      }
+    }
+
+    return commandResult;
   }
 
   //  Concurrency: 20
@@ -296,23 +345,14 @@ public final class FsLoader implements Runnable {
     String header = "Loader: " + name;
     for (int cmdNo = 0; cmdNo < workload.size(); cmdNo++) {
       Map<String, String> command = workload.get(cmdNo);
-      int totalRequests = totalBatches * filesInBatch;
-      long[] globalResults = new long[totalRequests];
-      synchronized (loadResults) {
-        int pos = 0;
-        for (long[] loadResult : loadResults.get(cmdNo)) {
-          System.arraycopy(loadResult, 0, globalResults, pos, loadResult.length);
-          pos += loadResult.length;
-        }
-      }
-
+      long[] globalResults = loadResults.get(cmdNo).stream().flatMapToLong(Arrays::stream).toArray();
       long averageObjectSize = 0;
-      String op = command.get("operation");
+      String op = command.containsKey("operation") ? command.get("operation") : command.get("operationType");
       if ("put".equalsIgnoreCase(op) || "get".equalsIgnoreCase(op)) {
         averageObjectSize = (long) filesSizes.stream().mapToLong(l -> l).average().orElse(0);
       }
 
-      PerfLoaderUtils.printStatistics(header, command.get("operation"), conf == null ? null : conf.get("s3.uri"),
+      PerfLoaderUtils.printStatistics(header, op, conf == null ? null : conf.get("s3.uri"),
                                       threads * genericWorkerBuilders.size(), averageObjectSize, globalResults);
     }
   }
