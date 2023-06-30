@@ -61,6 +61,7 @@ dependencies {
     implementation 'software.amazon.awssdk:aws-core'
     implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:apache-client'
+    implementation 'commons-io:commons-io:2.11.0'
 
     // https://github.com/aws/aws-sdk-java-v2/issues/1372
     implementation 'org.apache.httpcomponents:httpclient:4.5.14'

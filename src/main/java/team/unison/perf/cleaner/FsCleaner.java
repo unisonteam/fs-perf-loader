@@ -57,7 +57,7 @@ public final class FsCleaner implements Runnable {
       throw WorkerException.wrap(e);
     }
     log.info("End cleaner {} at host {}, cleaner took {}", name, genericWorker.getHost(), Duration.between(before, Instant.now()));
-    printSummary();
+    printSummary(Duration.between(before, Instant.now()));
   }
 
   @Override
@@ -65,9 +65,9 @@ public final class FsCleaner implements Runnable {
     return "FsCleaner{" + "paths=" + paths + ", threads=" + threads + ", suffixes=" + suffixes + ", genericWorker=" + genericWorker + '}';
   }
 
-  public void printSummary() {
+  public void printSummary(Duration duration) {
     String header = "Cleaner: " + name;
 
-    PerfLoaderUtils.printStatistics(header, "delete", conf == null ? null : conf.get("s3.uri"), threads, 0, results);
+    PerfLoaderUtils.printStatistics(header, "delete", conf == null ? null : conf.get("s3.uri"), threads, 0, results, duration);
   }
 }

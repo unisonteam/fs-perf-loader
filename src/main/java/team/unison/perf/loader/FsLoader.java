@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,6 +59,7 @@ public final class FsLoader implements Runnable {
   private final List<Long> filesSizes = new ArrayList<>();
   private final List<String> filesSuffixes = new ArrayList<>();
   private final List<List<long[]>> loadResults = new ArrayList<>();
+  private final List<Duration> loadDurations = new ArrayList<>();
   private final List<Map<String, String>> workload;
 
   private final Random random;
@@ -242,6 +244,7 @@ public final class FsLoader implements Runnable {
           }
         } else { // regular workload
           for (Map<String, String> command : workload) {
+            Instant before = Instant.now();
             List<Callable<long[]>> callables = filesInBatches.stream()
                 .map(batch -> ((Callable<long[]>) () -> runCommand(workersCopy, command, batch)))
                 .collect(Collectors.toList());
@@ -254,6 +257,7 @@ public final class FsLoader implements Runnable {
               }
             }).collect(Collectors.toList());
             loadResults.add(commandResults);
+            loadDurations.add(Duration.between(before, Instant.now()));
           }
         }
       } catch (InterruptedException e) {
@@ -346,6 +350,12 @@ public final class FsLoader implements Runnable {
     for (int cmdNo = 0; cmdNo < workload.size(); cmdNo++) {
       Map<String, String> command = workload.get(cmdNo);
       long[] globalResults = loadResults.get(cmdNo).stream().flatMapToLong(Arrays::stream).toArray();
+      Duration duration = loadDurations.size() < cmdNo ? null : loadDurations.get(cmdNo);
+      // TODO: proper counting of duration!!!
+      // see PrometheusUtils.PUSH_PERIOD_SECONDS
+      if (duration != null && cmdNo != 0) {
+        duration.minus(22500, ChronoUnit.MILLIS);
+      }
       long averageObjectSize = 0;
       String op = command.containsKey("operation") ? command.get("operation") : command.get("operationType");
       if ("put".equalsIgnoreCase(op) || "get".equalsIgnoreCase(op)) {
@@ -353,7 +363,7 @@ public final class FsLoader implements Runnable {
       }
 
       PerfLoaderUtils.printStatistics(header, op, conf == null ? null : conf.get("s3.uri"),
-                                      threads * genericWorkerBuilders.size(), averageObjectSize, globalResults);
+                                      threads * genericWorkerBuilders.size(), averageObjectSize, globalResults, duration);
     }
   }
 

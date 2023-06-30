@@ -3,16 +3,13 @@ package team.unison.perf;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import org.apache.commons.io.FileUtils;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.time.Duration;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -119,7 +116,8 @@ public final class PerfLoaderUtils {
   }
 
   public static void printStatistics(String header, String operation, String endpoint, int concurrency, long averageObjectSize,
-                                     long[] results) {
+                                     long[] results, Duration duration) {
+    long durationInSeconds = duration.toMillis() / 1000;
     Arrays.sort(results);
     System.out.printf("%s%n", header);
     System.out.printf("            --- Total Results ---%n");
@@ -131,20 +129,36 @@ public final class PerfLoaderUtils {
     System.out.printf("Total number of requests: %d%n", results.length);
     System.out.printf("Failed requests: %d%n", Arrays.stream(results).filter(l -> l <= 0).count());
     System.out.printf("Total elapsed time: %fs%n", ((double) Arrays.stream(results).sum()) / 1_000_000_000);
+    System.out.printf("Duration: %ds%n", durationInSeconds);
+    if (durationInSeconds != 0) {
+      System.out.printf("Requests/sec: %d%n", results.length / durationInSeconds);
+    }
     System.out.printf("Average request time: %fms%n", (Arrays.stream(results).average().orElse(0)) / 1_000_000);
     System.out.printf("Minimum request time: %.2fms%n", ((double) Arrays.stream(results).filter(l -> l > 0).min().orElse(0)) / 1_000_000);
     System.out.printf("Maximum request time: %.2fms%n", ((double) Arrays.stream(results).max().orElse(0)) / 1_000_000);
 
-    System.out.printf("Average Object Size: %d%n", averageObjectSize);
-    System.out.printf("Total Object Size: %d%n", averageObjectSize * results.length);
+    if (averageObjectSize != 0) {
+      long totalObjectSize = averageObjectSize * results.length;
+      System.out.printf("Average Object Size: %d%n", averageObjectSize);
+      System.out.printf("Total Object Size: %d%n", totalObjectSize);
+      System.out.printf(" - human readable: %s%n", FileUtils.byteCountToDisplaySize(totalObjectSize));
+      if (durationInSeconds != 0) {
+        System.out.printf("Speed (bytes/sec): %d%n", totalObjectSize / durationInSeconds);
+
+        String humanReadableTransferSpeed = FileUtils.byteCountToDisplaySize(totalObjectSize / durationInSeconds);
+        System.out.printf(" - human readable: %s%s%n", humanReadableTransferSpeed,
+                humanReadableTransferSpeed.endsWith("B") ? "ps" : " per second");
+      }
+    }
+
     System.out.printf("Response Time Percentiles%n");
 
     long[] parr = new long[]{500,
-                             750,
-                             900,
-                             950,
-                             990,
-                             999};
+            750,
+            900,
+            950,
+            990,
+            999};
     for (long l : parr) {
       System.out.printf("  %.1f : %.2f ms %n", (float) l / 10, getPercentile(results, ((double) l) / 1000) / 1_000_000);
     }
