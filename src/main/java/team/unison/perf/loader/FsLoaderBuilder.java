@@ -23,6 +23,7 @@ public class FsLoaderBuilder {
   private boolean useTmpFile = true;
   private String fill = "random";
   private Duration loadDelay = Duration.ZERO;
+  private Duration commandDelay = Duration.ofSeconds(25);
   private int count = 1;
   private Duration period = Duration.ZERO;
   private int filesInBatch = 100;
@@ -99,6 +100,14 @@ public class FsLoaderBuilder {
     return this;
   }
 
+  /**
+   * Delay between commands in workload.
+   */
+  public FsLoaderBuilder commandDelay(Duration commandDelay) {
+    this.commandDelay = commandDelay;
+    return this;
+  }
+
   public FsLoaderBuilder count(int count) {
     this.count = count;
     return this;
@@ -146,7 +155,8 @@ public class FsLoaderBuilder {
 
   public FsLoader createFsLoader() {
     return new FsLoader(name, conf, genericWorkerBuilders, threads, paths, workload, subdirsWidth, subdirsDepth, subdirsFormat, batches,
-                        useTmpFile, loadDelay, count, period, filesInBatch, filesSizesDistribution, filesSuffixesDistribution, fill,
+                        useTmpFile, loadDelay, commandDelay, count, period, filesInBatch, filesSizesDistribution, filesSuffixesDistribution,
+                        fill,
                         random, type);
   }
 
@@ -157,7 +167,7 @@ public class FsLoaderBuilder {
         + ", threads=" + threads + ", paths=" + paths + ", subdirsWidth=" + subdirsWidth
         + ", subdirsDepth=" + subdirsDepth + ", subdirsFormat=" + subdirsFormat
         + ", type=" + type + ", batches=" + batches
-        + ", useTmpFile=" + useTmpFile + ", loadDelay=" + loadDelay
+        + ", useTmpFile=" + useTmpFile + ", loadDelay=" + loadDelay + ", commandDelay=" + commandDelay
         + ", count=" + count + ", period=" + period
         + ", filesInBatch=" + filesInBatch + ", batchTimeout=" + batchTimeout + ", filesSizesDistribution='" + filesSizesDistribution + '\''
         + ", filesSuffixesDistribution='" + filesSuffixesDistribution

@@ -10,8 +10,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
@@ -19,8 +17,6 @@ import team.unison.perf.fswrapper.S3FsWrapper;
 import team.unison.remote.WorkerException;
 
 public class FsCleanerRemote {
-  private static final Logger log = LoggerFactory.getLogger(FsCleanerRemote.class);
-
   public static long[] apply(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) {
     FsWrapper fsWrapper = FsWrapperFactory.get(paths.get(0), conf);
 
@@ -28,7 +24,6 @@ public class FsCleanerRemote {
 
     List<Long> ret = new ArrayList<>();
 
-    PrometheusUtils.collectStatsFor("delete");
     try {
       for (String path : paths) {
         String bucket = S3FsWrapper.toBucketAndKey(null, path)[0];
@@ -82,7 +77,7 @@ public class FsCleanerRemote {
     long start = System.nanoTime();
     boolean success = fsWrapper.delete(bucket, path);
     long elapsed = System.nanoTime() - start;
-    PrometheusUtils.record(0, success, elapsed / 1_000_000);
+    PrometheusUtils.record("delete", 0, success, elapsed / 1_000_000);
     return elapsed * (success ? 1 : -1);
   }
 }

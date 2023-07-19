@@ -1,4 +1,4 @@
-package team.unison.remote;
+package team.unison.perf;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
@@ -10,6 +10,8 @@ import java.time.Duration;
 import java.util.Arrays;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import team.unison.remote.SshConnectionBuilder;
+import team.unison.remote.SshRunResult;
 
 @Disabled
 public class SshClientTest {

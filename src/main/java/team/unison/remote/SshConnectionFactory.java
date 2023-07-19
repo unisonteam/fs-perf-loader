@@ -25,7 +25,7 @@ public class SshConnectionFactory {
   }
 
   static boolean put(SshConnectionBuilder sshConnectionBuilder, InputStream inputStream, String remoteFileName) {
-    log.info("Uploading data from input stream to remote file {} on host {}", remoteFileName, sshConnectionBuilder.getHost());
+    log.info("Uploading data from input stream to remote file {} at host {}", remoteFileName, sshConnectionBuilder.getHost());
     Session session = getConnectedSession(sshConnectionBuilder);
     ChannelSftp channelSftp = null;
     try {

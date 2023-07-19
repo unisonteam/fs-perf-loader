@@ -7,15 +7,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
@@ -23,7 +20,8 @@ import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
 
 public class FsLoaderBatchRemote {
-  private static final Logger log = LoggerFactory.getLogger(FsLoaderBatchRemote.class);
+  private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
+
   // these filenames are not valid - use them to pass extra control metadata
   static final String THREAD_NUMBER_KEY = ":";
   // C style: 0 is false, else is true
@@ -31,16 +29,13 @@ public class FsLoaderBatchRemote {
   static final String LOAD_DELAY_IN_MILLIS_KEY = ":::";
   static final String FILL_KEY = "::::";
 
-  private static final Map<Long, byte[]> DATUM = new ConcurrentHashMap<>();
-
   public static long[] runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command) {
     if (batch.isEmpty()) {
       return new long[0];
     }
 
     long fill = batch.remove(FILL_KEY);
-    // 0 - no action - leave array filled with zeroes
-    final byte[] barr = DATUM.computeIfAbsent(fill, FsLoaderBatchRemote::getData);
+    byte[] barr = getData(fill);
 
     int threads = batch.remove(THREAD_NUMBER_KEY).intValue();
     // C style: 0 is false, else is true
@@ -54,15 +49,13 @@ public class FsLoaderBatchRemote {
     String randomPath = batch.keySet().stream().findFirst().get();
     FsWrapper fsWrapper = FsWrapperFactory.get(randomPath, conf);
 
-    PrometheusUtils.collectStatsFor(command.get("operation"));
-
     List<Callable<Object>> callables = batch.entrySet().stream()
         .map(entry -> Executors.callable(
             () -> {
               long start = System.nanoTime();
               boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), barr, useTmpFile, command);
               long elapsed = System.nanoTime() - start;
-              PrometheusUtils.record(entry.getValue(), success, elapsed / 1_000_000);
+              PrometheusUtils.record(command.get("operation"), entry.getValue(), success, elapsed / 1_000_000);
               ret[pos.getAndIncrement()] = elapsed * (success ? 1 : -1);
               if (delayInMillis > 0) {
                 Utils.sleep(delayInMillis);
@@ -86,8 +79,7 @@ public class FsLoaderBatchRemote {
     }
 
     long fill = batch.remove(FILL_KEY);
-    // 0 - no action - leave array filled with zeroes
-    final byte[] barr = DATUM.computeIfAbsent(fill, FsLoaderBatchRemote::getData);
+    byte[] barr = getData(fill);
 
     int threads = batch.remove(THREAD_NUMBER_KEY).intValue();
     // C style: 0 is false, else is true
@@ -176,8 +168,9 @@ public class FsLoaderBatchRemote {
   }
 
   private static byte[] getData(long fill) {
-    byte[] barr = new byte[128 * 1024 * 1024];
+    byte[] barr = new byte[WRITE_DATA_ARRAY_SIZE];
 
+    // 0 - no action - leave array filled with zeroes
     if (fill < 0) {
       new Random().nextBytes(barr);
     } else if (fill > 0) {

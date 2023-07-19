@@ -44,7 +44,11 @@ public class GenericWorkerBuilder implements Serializable {
   }
 
   public static GenericWorker newInstance(SshConnectionBuilder sshConnectionBuilder) {
-    String connectionLocation = "//" + sshConnectionBuilder.getHost() + ":" + Agent.AGENT_REGISTRY_PORT + "/" + Agent.AGENT_REGISTRY_NAME;
+    String agentRegistryName = Agent.AGENT_REGISTRY_NAME
+        + (sshConnectionBuilder.getSystemUser() == null ? "" : "_" + sshConnectionBuilder.getSystemUser())
+        + (sshConnectionBuilder.getSystemGroup() == null ? "" : "__" + sshConnectionBuilder.getSystemGroup());
+
+    String connectionLocation = "//" + sshConnectionBuilder.getHost() + ":" + Agent.AGENT_REGISTRY_PORT + "/" + agentRegistryName;
     log.info("Connection location: " + connectionLocation);
 
     try {
@@ -56,7 +60,7 @@ public class GenericWorkerBuilder implements Serializable {
     } catch (IOException | NotBoundException e) { // no old instance - will start a new one
     }
 
-    RemoteExec.deployAgent(sshConnectionBuilder);
+    RemoteExec.deployAgent(sshConnectionBuilder, agentRegistryName);
     try {
       Agent agent = null;
       for (int i = 0; i < 600; i++) {
@@ -67,7 +71,7 @@ public class GenericWorkerBuilder implements Serializable {
 
           log.info("Connection to " + connectionLocation + " was successful");
           break;
-        } catch (IOException e) {
+        } catch (IOException | NotBoundException e) {
           sleep(100);
         }
       }

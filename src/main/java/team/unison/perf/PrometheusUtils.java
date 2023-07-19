@@ -1,7 +1,5 @@
 package team.unison.perf;
 
-import static team.unison.remote.Utils.sleep;
-
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Histogram;
@@ -19,7 +17,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,16 +39,11 @@ public final class PrometheusUtils {
 
   private static final int PUSH_PERIOD_SECONDS = 15;
   private static final AtomicBoolean INITIALIZED = new AtomicBoolean(false);
-  private static final AtomicReference<String> ACTIVE_OPERATION = new AtomicReference<>();
 
   private PrometheusUtils() {
   }
 
   private static final CollectorRegistry COLLECTOR_REGISTRY = new CollectorRegistry();
-
-  public static void record(long objectSize, boolean success, long elapsedMs) {
-    record(ACTIVE_OPERATION.get(), objectSize, success, elapsedMs);
-  }
 
   public static void record(String command, long objectSize, boolean success, long elapsedMs) {
     if (!INITIALIZED.get()) {
@@ -115,30 +107,18 @@ public final class PrometheusUtils {
     }
   }
 
-  public static void shutdown() {
-    collectStatsFor(null);
-  }
-
-  public static synchronized void collectStatsFor(String operation) {
-    if (!INITIALIZED.get()) {
+  public static synchronized void clearStatistics() {
+    if (!INITIALIZED.get() || COUNTERS.isEmpty()) {
       return;
     }
-    if (!COUNTERS.isEmpty() && (operation == null || !ACTIVE_OPERATION.get().equals(operation))) {
-      try {
-        PUSH_GATEWAY.push(COLLECTOR_REGISTRY, JOB_NAME, INSTANCE_GROUPING_KEY);
-        COUNTERS.values().forEach(COLLECTOR_REGISTRY::unregister);
-        HISTOGRAM_MAP.values().forEach(COLLECTOR_REGISTRY::unregister);
-        COUNTERS.clear();
-        HISTOGRAM_MAP.clear();
-        // give some time not to overlap results from different operations but to clear statistics
-        // (1.5 * push period)
-        if (operation != null) { // null == cleanup after all operations
-          sleep(PUSH_PERIOD_SECONDS * 1500);
-        }
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
+    try {
+      PUSH_GATEWAY.push(COLLECTOR_REGISTRY, JOB_NAME, INSTANCE_GROUPING_KEY);
+      COUNTERS.values().forEach(COLLECTOR_REGISTRY::unregister);
+      HISTOGRAM_MAP.values().forEach(COLLECTOR_REGISTRY::unregister);
+      COUNTERS.clear();
+      HISTOGRAM_MAP.clear();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
-    ACTIVE_OPERATION.set(operation);
   }
 }

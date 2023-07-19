@@ -8,10 +8,13 @@ import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.cleaner.FsCleaner;
+import team.unison.perf.jstack.JstackSaver;
 import team.unison.perf.loader.FsLoader;
 import team.unison.remote.SshConnectionBuilder;
 import team.unison.remote.SshConnectionFactory;
@@ -19,11 +22,12 @@ import team.unison.remote.SshConnectionFactory;
 public final class PerfLoaderMain {
   private static final Logger log = LoggerFactory.getLogger(PerfLoaderMain.class);
   private static final String DEFAULT_PROPERTIES_FILE_PATH = "loader.properties";
+  private static final ScheduledExecutorService SCHEDULED_EXECUTOR_SERVICE = Executors.newScheduledThreadPool(1);
 
   private PerfLoaderMain() {
   }
 
-  public static void main(String[] args) throws IOException {
+  public static void main(String[] args) throws Exception {
     Thread.setDefaultUncaughtExceptionHandler((t, e) -> log.warn("Uncaught exception in thread {}", t.getName(), e));
 
     String propertiesFilePath = parseArgs(args);
@@ -40,6 +44,13 @@ public final class PerfLoaderMain {
     SshConnectionBuilder sshConnectionBuilder = sshConnectionBuilder(properties);
 
     List<FsLoader> fsLoaders = FsLoaderPropertiesBuilder.build(properties, sshConnectionBuilder);
+    List<JstackSaver> jstackSavers = JstackSaverPropertiesBuilder.build(properties, sshConnectionBuilder);
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> jstackSavers.forEach(JstackSaver::close)));
+
+    if (!jstackSavers.isEmpty()) {
+      jstackSavers.forEach(j -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(j, j.getPeriod().toMillis(), j.getPeriod().toMillis(),
+                                                                               TimeUnit.MILLISECONDS));
+    }
 
     if (!fsLoaders.isEmpty()) {
       ExecutorService executorService = Executors.newFixedThreadPool(fsLoaders.size());
@@ -61,6 +72,12 @@ public final class PerfLoaderMain {
 
     List<FsCleaner> fsCleaners = FsCleanerPropertiesBuilder.build(properties, sshConnectionBuilder);
     fsCleaners.forEach(FsCleaner::run);
+
+    if (fsLoaders.isEmpty() && !jstackSavers.isEmpty()) {
+      System.out.println("Collecting thread dumps. Press Ctrl+C to exit");
+    } else {
+      SCHEDULED_EXECUTOR_SERVICE.shutdown();
+    }
   }
 
   private static SshConnectionBuilder sshConnectionBuilder(Properties properties) {

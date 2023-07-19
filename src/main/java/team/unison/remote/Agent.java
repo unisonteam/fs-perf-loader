@@ -23,4 +23,8 @@ public interface Agent extends Remote {
   void init(Properties properties) throws IOException;
 
   void shutdown() throws IOException;
+
+  void clearStatistics() throws IOException;
+
+  String jstack(String className) throws IOException;
 }

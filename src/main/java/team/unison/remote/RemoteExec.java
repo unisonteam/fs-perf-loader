@@ -26,10 +26,23 @@ final class RemoteExec {
   private static final String DEPLOY_DIR_MASK = "/tmp/remote-agent-%s-%02d";
   private static final String AGENT_SCRIPT_NAME = "agent.sh";
 
-  public static synchronized void deployAgent(SshConnectionBuilder sshConnectionBuilder) {
+  private static int DEPLOYED_AGENT_PORT = Agent.AGENT_REGISTRY_PORT;
+
+  public static synchronized void deployAgent(SshConnectionBuilder sshConnectionBuilder, String agentRegistryName) {
     SshRunResult checkAlreadyDeployed = sshConnectionBuilder.run("[ -f " + getScriptPath() + " ]");
+
+    DEPLOYED_AGENT_PORT++;
+
+    String fullAgentStartCommand =
+        getScriptPath() + " " + sshConnectionBuilder.getHost() + " " + agentRegistryName + " " + DEPLOYED_AGENT_PORT;
+    Map<String, String> env = new HashMap<>();
+    env.put("_JAVA_OPTIONS", PerfLoaderUtils.getGlobalProperties().getProperty("jvmoptions", "-Xmx1G"));
+
     if (checkAlreadyDeployed.getExitStatus() == 0) {
-      sshConnectionBuilder.run(getScriptPath() + " " + sshConnectionBuilder.getHost());
+      SshRunResult sshRunResult = sshConnectionBuilder.run(fullAgentStartCommand, env);
+      if (sshRunResult.getExitStatus() != 0) {
+        throw new RuntimeException("Couldn't deploy worker : " + sshRunResult);
+      }
       return;
     }
 
@@ -63,9 +76,7 @@ final class RemoteExec {
     commands.add("sed -i 's/\\r//' " + getScriptPath());
     sshConnectionBuilder.run("bash -c \"" + String.join(" && ", commands) + "\"");
 
-    Map<String, String> env = new HashMap<>();
-    env.put("_JAVA_OPTIONS", PerfLoaderUtils.getGlobalProperties().getProperty("jvmoptions", "-Xmx1G"));
-    SshRunResult sshRunResult = sshConnectionBuilder.run(getScriptPath() + " " + sshConnectionBuilder.getHost(), env);
+    SshRunResult sshRunResult = sshConnectionBuilder.run(fullAgentStartCommand, env);
 
     if (sshRunResult.getExitStatus() != 0) {
       throw new RuntimeException("Couldn't deploy worker : " + sshRunResult);
@@ -95,5 +106,4 @@ final class RemoteExec {
     }
     return "WIP";
   }
-
 }

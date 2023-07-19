@@ -35,6 +35,9 @@ final class FsLoaderPropertiesBuilder {
       for (String host : hosts) {
         genericWorkerBuilders.add(ClientFactory.buildGeneric().sshConnectionBuilder(sshConnectionBuilder.host(host)));
       }
+      long defaultCommandDelayInSeconds = props.getProperty("prometheus.address") != null ? 25 : 0;
+      long commandDelayInSeconds = props.getProperty(prefix + "command.delay") != null ? Long.parseLong(
+          props.getProperty(prefix + "command.delay")) : defaultCommandDelayInSeconds;
       FsLoader fsLoader = new FsLoaderBuilder()
           .name(fsLoaderName)
           .conf(Confs.get(props.getProperty(prefix + "conf")))
@@ -46,8 +49,9 @@ final class FsLoaderPropertiesBuilder {
           .paths(PerfLoaderUtils.parseTemplate(props.getProperty(prefix + "paths", "")))
           .workload(PerfLoaderUtils.parseWorkload(props.getProperty(prefix + "workload")))
           .genericWorkerBuilders(genericWorkerBuilders)
-          .useTmpFile(Boolean.parseBoolean(props.getProperty(prefix + "usetmpfile", "true")))
+          .useTmpFile(Boolean.parseBoolean(props.getProperty(prefix + "usetmpfile", "false")))
           .loadDelay(Duration.ofMillis(Long.parseLong(props.getProperty(prefix + "delay", "0"))))
+          .commandDelay(Duration.ofSeconds(commandDelayInSeconds))
           .count(Integer.parseInt(props.getProperty(prefix + "count", "1")))
           .period(Duration.ofSeconds(Long.parseLong(props.getProperty(prefix + "period", "0"))))
           .batches(Integer.parseInt(props.getProperty(prefix + "batch.count", "10")))

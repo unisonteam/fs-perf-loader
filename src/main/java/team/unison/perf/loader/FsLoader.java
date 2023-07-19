@@ -45,6 +45,7 @@ public final class FsLoader implements Runnable {
   private final int threads;
   private final boolean useTmpFile;
   private final Duration loadDelay;
+  private final Duration commandDelay;
   private final int count;
   private final Duration period;
   private final List<String> paths;
@@ -68,7 +69,8 @@ public final class FsLoader implements Runnable {
 
   FsLoader(String name, Map<String, String> conf, Collection<GenericWorkerBuilder> genericWorkerBuilders,
            int threads, List<String> paths, List<Map<String, String>> workload,
-           int subdirsWidth, int subdirsDepth, String subdirsFormat, int batches, boolean useTmpFile, Duration loadDelay,
+           int subdirsWidth, int subdirsDepth, String subdirsFormat, int batches, boolean useTmpFile,
+           Duration loadDelay, Duration commandDelay,
            int count, Duration period,
            int filesInBatch, String filesSizesDistribution, String filesSuffixesDistribution, String fill,
            Random random, Type type) {
@@ -82,6 +84,7 @@ public final class FsLoader implements Runnable {
     this.totalBatches = batches * paths.size();
     this.useTmpFile = useTmpFile;
     this.loadDelay = loadDelay;
+    this.commandDelay = commandDelay;
     this.count = count;
     this.period = period;
     this.filesInBatch = filesInBatch;
@@ -222,7 +225,7 @@ public final class FsLoader implements Runnable {
 
     try {
       try {
-        if (workload.get(0).containsKey("operationType")) {
+        if (workload.get(0).containsKey("operationType")) { // mixed workload
           List<Callable<List<long[]>>> callables = filesInBatches.stream()
               .map(batch -> ((Callable<List<long[]>>) () -> runMixedWorkload(workersCopy, batch)))
               .collect(Collectors.toList());
@@ -258,6 +261,18 @@ public final class FsLoader implements Runnable {
             }).collect(Collectors.toList());
             loadResults.add(commandResults);
             loadDurations.add(Duration.between(before, Instant.now()));
+            genericWorkers.parallelStream().forEach(gw -> {
+              try {
+                gw.getAgent().clearStatistics();
+              } catch (IOException e) {
+                log.warn("Error clearing statistics in agent at host {}", gw.getHost());
+              }
+            });
+            boolean lastCommand = workload.indexOf(command) == workload.size() - 1;
+            if (!commandDelay.isZero() && !lastCommand) {
+              log.info("Waiting {} seconds between commands", commandDelay.getSeconds());
+              Thread.sleep(commandDelay.toMillis());
+            }
           }
         }
       } catch (InterruptedException e) {

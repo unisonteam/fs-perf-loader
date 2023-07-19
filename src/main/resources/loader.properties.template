@@ -13,7 +13,7 @@
 #kerberos.keytab=...
 
 #default: current user
-ssh.user=aluht
+ssh.user=someuser
 #connect by key:
 #default: $HOME/.ssh/id_rsa
 ssh.key=/home/user/.ssh/private_key
@@ -78,11 +78,13 @@ fsloader.LOAD.batch.count=100
 fsloader.LOAD.batch.file.sizes=10:10M,5:10K,85:50K
 #percentage
 fsloader.LOAD.batch.file.suffixes=90:good,10:bad
-#optional: write data to a temporary _COPYING_ file and rename if to the final destination at the end (default: true)
+#optional: write data to a temporary _COPYING_ file and rename if to the final destination at the end (default: false)
 #applicable to HDFS only
 #fsloader.LOAD.usetmpfile=true
 #optional: delay after loading of each file (in millis)
 #fsloader.LOAD.delay=100
+#optional: delay after each command (in seconds). Default : 0 if prometheus is not enabled and 25 if it is enabled (to separate statistics from different commands)
+#fsloader.LOAD.command.delay=30
 #optional: number of loads (default: 1 - only one load is done)
 #fsloader.LOAD.count=2
 #optional: if there are several loads - delay between them in seconds (default: 0)
@@ -99,3 +101,22 @@ fsloader.LOAD.batch.file.suffixes=90:good,10:bad
 #fscleaner.CLEAN.suffixes=.bak,.old
 #optional, default - 8 threads
 #fscleaner.CLEAN.threads=10
+
+jstack.CLIENT.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
+jstack.CLIENT.class=RemoteMain
+jstack.CLIENT.fileprefix=C:/Temp/client.jstack
+#optional, default: 30
+#jstack.CLIENT.period=15
+#compress file (default: false)
+#jstack.CLIENT.gzip=true
+#append output from the new run to old file (default: false - rotate files)
+#jstack.CLIENT.append=true
+#optional - user that should be used to connect to Java process (default: ssh.user)
+#jstack.CLIENT.user=serviceuser
+#optional - group that should be used to connect to Java process
+#jstack.CLIENT.group=servicegroup
+
+#examples for processes:
+#client: class=RemoteMain, user - empty
+#OM: class=OzoneManagerStarter, user=ozone
+#etc.

@@ -1,10 +1,13 @@
 package team.unison.remote;
 
+import static team.unison.remote.Utils.sleep;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.rmi.AlreadyBoundException;
+import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
@@ -18,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.cleaner.FsCleanerRemote;
+import team.unison.perf.jstack.JstackSaverRemote;
 import team.unison.perf.loader.FsLoaderBatchRemote;
 
 class AgentImpl implements Agent, Unreferenced {
@@ -26,13 +30,21 @@ class AgentImpl implements Agent, Unreferenced {
   private AgentImpl() {
   }
 
-  public static synchronized void start() {
-    log.info("Agent started at {}", new Date());
+  public static synchronized void start(String registryName, int exportPort) {
+    log.info("Agent started at {}, registry name is {}", new Date(), registryName);
     try {
-      Registry registry = LocateRegistry.createRegistry(AGENT_REGISTRY_PORT);
+      Registry registry;
+      try {
+        registry = LocateRegistry.getRegistry(AGENT_REGISTRY_PORT);
+        registry.list(); // throws exception in case if problems
+        log.info("Bound to existing registry");
+      } catch (RemoteException e) {
+        log.info("Creating a new registry");
+        registry = LocateRegistry.createRegistry(AGENT_REGISTRY_PORT);
+      }
       Agent instance = new AgentImpl();
-      UnicastRemoteObject.exportObject(instance, AGENT_REGISTRY_PORT);
-      registry.bind(AGENT_REGISTRY_NAME, instance);
+      UnicastRemoteObject.exportObject(instance, exportPort);
+      registry.bind(registryName, instance);
     } catch (IOException e) {
       log.error("IOException in start()", e);
       throw new UncheckedIOException(e);
@@ -67,26 +79,45 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public void init(Properties properties) throws IOException {
+  public String jstack(String className) throws IOException {
+    return JstackSaverRemote.jstack(className);
+  }
+
+  @Override
+  public void init(Properties properties) {
     // init kerberos
     String principal = properties.getProperty("kerberos.principal");
     String keytab = properties.getProperty("kerberos.keytab");
     if ((principal != null) && (keytab != null)) {
       log.info("kinit {} {}", principal, keytab);
-      UserGroupInformation.loginUserFromKeytab(principal, keytab);
+      try {
+        UserGroupInformation.loginUserFromKeytab(principal, keytab);
+      } catch (IOException e) {
+        log.warn("Can't kinit", e);
+      }
     }
     // init prometheus
     PrometheusUtils.init(properties);
   }
 
   @Override
-  public void shutdown() throws IOException {
-    // PrometheusUtils.shutdown();
+  public void shutdown() {
+    log.info("Agent stopped at {}", new Date());
+    PrometheusUtils.clearStatistics();
+    // start a separate thread to shut down VM to respond properly to the remote caller
+    new Thread(() -> {
+      sleep(1000);
+      System.exit(0);
+    }).start();
+  }
+
+  @Override
+  public void clearStatistics() throws IOException {
+    PrometheusUtils.clearStatistics();
   }
 
   @Override
   public void unreferenced() {
-    log.info("Agent stopped at {}", new Date());
-    System.exit(0);
+    shutdown();
   }
 }

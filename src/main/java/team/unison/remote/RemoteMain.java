@@ -9,7 +9,10 @@ public class RemoteMain {
 
   public static void main(String[] args) throws Exception {
     Thread.setDefaultUncaughtExceptionHandler((t, e) -> log.warn("Uncaught exception in thread {}", t.getName(), e));
-    System.setProperty("java.rmi.server.hostname", args[0]);
-    AgentImpl.start();
+    String host = args[0];
+    String registryName = args[1];
+    int exportPort = Integer.parseInt(args[2]);
+    System.setProperty("java.rmi.server.hostname", host);
+    AgentImpl.start(registryName, exportPort);
   }
 }

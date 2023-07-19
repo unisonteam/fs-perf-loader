@@ -1,5 +1,8 @@
 package team.unison.perf;
 
+import static team.unison.perf.TextFormatter.byteCountToDisplaySize;
+import static team.unison.perf.TextFormatter.bytesPerSecondToSpeed;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
@@ -141,13 +144,11 @@ public final class PerfLoaderUtils {
       long totalObjectSize = averageObjectSize * results.length;
       System.out.printf("Average Object Size: %d%n", averageObjectSize);
       System.out.printf("Total Object Size: %d%n", totalObjectSize);
-      System.out.printf(" - human readable: %s%n", FileUtils.byteCountToDisplaySize(totalObjectSize));
+      System.out.printf(" - binary units: %s%n", byteCountToDisplaySize(totalObjectSize));
       if (durationInSeconds != 0) {
         System.out.printf("Speed (bytes/sec): %d%n", totalObjectSize / durationInSeconds);
 
-        String humanReadableTransferSpeed = FileUtils.byteCountToDisplaySize(totalObjectSize / durationInSeconds);
-        System.out.printf(" - human readable: %s%s%n", humanReadableTransferSpeed,
-                humanReadableTransferSpeed.endsWith("B") ? "ps" : " per second");
+        System.out.printf(" - binary units: %s%n", bytesPerSecondToSpeed(totalObjectSize / durationInSeconds));
       }
     }
 

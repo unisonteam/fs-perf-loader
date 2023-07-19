@@ -1,8 +1,11 @@
-package team.unison.remote;
+package team.unison.perf;
 
 import java.io.IOException;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import team.unison.remote.ClientFactory;
+import team.unison.remote.GenericWorker;
+import team.unison.remote.SshConnectionBuilder;
 
 @Disabled
 public class GenericOperationsTest {
