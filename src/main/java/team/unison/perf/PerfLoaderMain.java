@@ -45,7 +45,6 @@ public final class PerfLoaderMain {
 
     List<FsLoader> fsLoaders = FsLoaderPropertiesBuilder.build(properties, sshConnectionBuilder);
     List<JstackSaver> jstackSavers = JstackSaverPropertiesBuilder.build(properties, sshConnectionBuilder);
-    Runtime.getRuntime().addShutdownHook(new Thread(() -> jstackSavers.forEach(JstackSaver::close)));
 
     if (!jstackSavers.isEmpty()) {
       jstackSavers.forEach(j -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(j, j.getPeriod().toMillis(), j.getPeriod().toMillis(),
@@ -63,7 +62,7 @@ public final class PerfLoaderMain {
         try {
           executorService.invokeAll(callables);
         } catch (InterruptedException e) {
-          throw new RuntimeException(e); // NOPMD
+          throw new RuntimeException(e);
         }
       } finally {
         executorService.shutdownNow();
