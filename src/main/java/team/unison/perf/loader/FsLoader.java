@@ -1,24 +1,5 @@
 package team.unison.perf.loader;
 
-import java.io.IOException;
-import java.math.BigInteger;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.PerfLoaderUtils;
@@ -26,6 +7,18 @@ import team.unison.remote.GenericWorker;
 import team.unison.remote.GenericWorkerBuilder;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
+
+import java.io.IOException;
+import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public final class FsLoader implements Runnable {
   private static final Logger log = LoggerFactory.getLogger(FsLoader.class);
@@ -149,7 +142,7 @@ public final class FsLoader implements Runnable {
     }
     Map<String, Integer> keyValue = new HashMap<>();
     Arrays.stream(distribution.split(",")).map(s -> s.trim().split(":")).forEach(
-        a -> keyValue.put(a.length > 1 ? a[1].trim() : "", Integer.parseInt(a[0].trim())));
+            a -> keyValue.put(a.length > 1 ? a[1].trim() : "", Integer.parseInt(a[0].trim())));
 
     // 50:50 distribution is effectively equal to 1:1 - find GCD for all values
     BigInteger gcd = null;
@@ -203,8 +196,8 @@ public final class FsLoader implements Runnable {
   @Override
   public void run() {
     List<GenericWorker> genericWorkers = genericWorkerBuilders.parallelStream()
-        .map(GenericWorkerBuilder::get)
-        .collect(Collectors.toList());
+            .map(GenericWorkerBuilder::get)
+            .collect(Collectors.toList());
 
     for (int i = 0; i < count; i++) {
       if (i != 0) {
@@ -226,9 +219,10 @@ public final class FsLoader implements Runnable {
     try {
       try {
         if (workload.get(0).containsKey("operationType")) { // mixed workload
+          Instant before = Instant.now();
           List<Callable<List<long[]>>> callables = filesInBatches.stream()
-              .map(batch -> ((Callable<List<long[]>>) () -> runMixedWorkload(workersCopy, batch)))
-              .collect(Collectors.toList());
+                  .map(batch -> ((Callable<List<long[]>>) () -> runMixedWorkload(workersCopy, batch)))
+                  .collect(Collectors.toList());
           List<Future<List<long[]>>> futures = executorService.invokeAll(callables);
           List<List<long[]>> commandResults = futures.stream().map(f -> {
             try {
@@ -241,6 +235,7 @@ public final class FsLoader implements Runnable {
             for (int i = 0; i < commandResult.size(); i++) {
               if (loadResults.size() <= i) {
                 loadResults.add(new ArrayList<>());
+                loadDurations.add(Duration.between(before, Instant.now()));
               }
               loadResults.get(i).add(commandResult.get(i));
             }
@@ -249,8 +244,8 @@ public final class FsLoader implements Runnable {
           for (Map<String, String> command : workload) {
             Instant before = Instant.now();
             List<Callable<long[]>> callables = filesInBatches.stream()
-                .map(batch -> ((Callable<long[]>) () -> runCommand(workersCopy, command, batch)))
-                .collect(Collectors.toList());
+                    .map(batch -> ((Callable<long[]>) () -> runCommand(workersCopy, command, batch)))
+                    .collect(Collectors.toList());
             List<Future<long[]>> futures = executorService.invokeAll(callables);
             List<long[]> commandResults = futures.stream().map(f -> {
               try {
@@ -290,14 +285,11 @@ public final class FsLoader implements Runnable {
       genericWorker = workersCopy.remove(workersCopy.size() - 1);
     }
     try {
-      batch.put(FsLoaderBatchRemote.THREAD_NUMBER_KEY, (long) threads);
-      batch.put(FsLoaderBatchRemote.USE_TMP_FILE_KEY, useTmpFile ? 1 : 0L);
-      batch.put(FsLoaderBatchRemote.LOAD_DELAY_IN_MILLIS_KEY, loadDelay.toMillis());
-      batch.put(FsLoaderBatchRemote.FILL_KEY, "random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
 
       log.info("Start mixed workload at host {}", genericWorker.getHost());
       Instant before = Instant.now();
-      loadResult = genericWorker.getAgent().runMixedWorkload(conf, batch, workload);
+      char fillChar = (char) ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
+      loadResult = genericWorker.getAgent().runMixedWorkload(conf, batch, workload, new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), fillChar));
       log.info("End mixed workload at host {}, batch took {}", genericWorker.getHost(), Duration.between(before, Instant.now()));
     } catch (IOException e) {
       throw WorkerException.wrap(e);
@@ -317,20 +309,17 @@ public final class FsLoader implements Runnable {
       genericWorker = workersCopy.remove(workersCopy.size() - 1);
     }
     try {
-      batch.put(FsLoaderBatchRemote.THREAD_NUMBER_KEY, (long) threads);
-      batch.put(FsLoaderBatchRemote.USE_TMP_FILE_KEY, useTmpFile ? 1 : 0L);
-      batch.put(FsLoaderBatchRemote.LOAD_DELAY_IN_MILLIS_KEY, loadDelay.toMillis());
-      batch.put(FsLoaderBatchRemote.FILL_KEY, "random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
-
       log.info("Start batch for command '{}' at host {}", command.get("operation"), genericWorker.getHost());
+      char fillChar = (char) ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
       Instant before = Instant.now();
       try {
-        commandResult = genericWorker.getAgent().runCommand(conf, batch, command);
-      } catch (IOException e) {
+        commandResult = genericWorker.getAgent().runCommand(conf, batch, command, new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), fillChar));
+      } catch (Exception e) {
+        log.warn("Error running load", e);
         throw WorkerException.wrap(e);
       }
       log.info("End batch for command '{}' at host {}, batch took {}", command.get("operation"),
-               genericWorker.getHost(), Duration.between(before, Instant.now()));
+              genericWorker.getHost(), Duration.between(before, Instant.now()));
     } finally {
       synchronized (workersCopy) {
         workersCopy.add(genericWorker);
@@ -366,11 +355,6 @@ public final class FsLoader implements Runnable {
       Map<String, String> command = workload.get(cmdNo);
       long[] globalResults = loadResults.get(cmdNo).stream().flatMapToLong(Arrays::stream).toArray();
       Duration duration = loadDurations.size() < cmdNo ? null : loadDurations.get(cmdNo);
-      // TODO: proper counting of duration!!!
-      // see PrometheusUtils.PUSH_PERIOD_SECONDS
-      if (duration != null && cmdNo != 0) {
-        duration.minus(22500, ChronoUnit.MILLIS);
-      }
       long averageObjectSize = 0;
       String op = command.containsKey("operation") ? command.get("operation") : command.get("operationType");
       if ("put".equalsIgnoreCase(op) || "get".equalsIgnoreCase(op)) {
@@ -378,7 +362,7 @@ public final class FsLoader implements Runnable {
       }
 
       PerfLoaderUtils.printStatistics(header, op, conf == null ? null : conf.get("s3.uri"),
-                                      threads * genericWorkerBuilders.size(), averageObjectSize, globalResults, duration);
+              threads * genericWorkerBuilders.size(), averageObjectSize, globalResults, duration);
     }
   }
 
@@ -415,12 +399,12 @@ public final class FsLoader implements Runnable {
   @Override
   public String toString() {
     return "FsLoader{" + "threads=" + threads + ", paths=" + paths
-        + ", subdirs count=" + subdirs.size()
-        + ", subdirs=" + subdirs.subList(0, Math.min(subdirs.size(), 20))
-        + ", totalBatches=" + totalBatches + ", useTmpFile=" + useTmpFile + ", loadDelay=" + loadDelay
-        + ", count=" + count + ", period=" + period
-        + ", filesInBatch=" + filesInBatch + ", filesSizes=" + filesSizesDistribution + ", filesSuffixes=" + filesSuffixesDistribution
-        + ", fill=" + fill
-        + '}';
+            + ", subdirs count=" + subdirs.size()
+            + ", subdirs=" + subdirs.subList(0, Math.min(subdirs.size(), 20))
+            + ", totalBatches=" + totalBatches + ", useTmpFile=" + useTmpFile + ", loadDelay=" + loadDelay
+            + ", count=" + count + ", period=" + period
+            + ", filesInBatch=" + filesInBatch + ", filesSizes=" + filesSizesDistribution + ", filesSuffixes=" + filesSuffixesDistribution
+            + ", fill=" + fill
+            + '}';
   }
 }

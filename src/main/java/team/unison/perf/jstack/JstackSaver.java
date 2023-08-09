@@ -42,10 +42,10 @@ public class JstackSaver implements Runnable {
     if (!new File(filePrefix).getParentFile().exists() && !new File(filePrefix).getParentFile().mkdirs()) {
       throw new IllegalArgumentException("Can't create the parent directory of " + filePrefix);
     }
-    rotateFiles(fileGzip, fileAppend, fileSingle);
+    rotateFiles(fileAppend);
   }
 
-  private void rotateFiles(boolean fileGzip, boolean fileAppend, boolean fileSingle) {
+  private void rotateFiles(boolean fileAppend) {
     if (fileAppend) {
       return;
     }
@@ -71,7 +71,7 @@ public class JstackSaver implements Runnable {
           outputWriter.newLine();
         }
       }
-    } catch (IOException e) {
+    } catch (Exception e) {
       log.warn("Error collecting jstack for {}", className, e);
     }
   }

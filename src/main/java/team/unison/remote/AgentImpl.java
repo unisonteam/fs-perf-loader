@@ -1,6 +1,13 @@
 package team.unison.remote;
 
-import static team.unison.remote.Utils.sleep;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import team.unison.perf.PrometheusUtils;
+import team.unison.perf.cleaner.FsCleanerRemote;
+import team.unison.perf.jstack.JstackSaverRemote;
+import team.unison.perf.loader.FsLoaderBatchRemote;
+import team.unison.perf.loader.FsLoaderOperationConf;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -16,13 +23,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import team.unison.perf.PrometheusUtils;
-import team.unison.perf.cleaner.FsCleanerRemote;
-import team.unison.perf.jstack.JstackSaverRemote;
-import team.unison.perf.loader.FsLoaderBatchRemote;
+
+import static team.unison.remote.Utils.sleep;
 
 class AgentImpl implements Agent, Unreferenced {
   private static final Logger log = LoggerFactory.getLogger(AgentImpl.class);
@@ -64,13 +66,13 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public long[] runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command) {
-    return FsLoaderBatchRemote.runCommand(conf, batch, command);
+  public long[] runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command, FsLoaderOperationConf opConf) {
+    return FsLoaderBatchRemote.runCommand(conf, batch, command, opConf);
   }
 
   @Override
-  public List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload) {
-    return FsLoaderBatchRemote.runMixedWorkload(conf, batch, workload);
+  public List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload, FsLoaderOperationConf opConf) {
+    return FsLoaderBatchRemote.runMixedWorkload(conf, batch, workload, opConf);
   }
 
   @Override
@@ -103,7 +105,7 @@ class AgentImpl implements Agent, Unreferenced {
   @Override
   public void shutdown() {
     log.info("Agent stopped at {}", new Date());
-    PrometheusUtils.clearStatistics();
+    PrometheusUtils.clearStatistics(true);
     // start a separate thread to shut down VM to respond properly to the remote caller
     new Thread(() -> {
       sleep(1000);
@@ -113,7 +115,7 @@ class AgentImpl implements Agent, Unreferenced {
 
   @Override
   public void clearStatistics() throws IOException {
-    PrometheusUtils.clearStatistics();
+    PrometheusUtils.clearStatistics(false);
   }
 
   @Override

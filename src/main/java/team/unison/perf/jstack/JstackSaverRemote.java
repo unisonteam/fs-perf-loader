@@ -4,6 +4,7 @@ import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import team.unison.remote.RemoteMain;
 import team.unison.remote.WorkerException;
 
 import javax.management.MBeanServerConnection;
@@ -29,20 +30,24 @@ public class JstackSaverRemote {
   private static final Map<String, MBeanServerConnection> MBEAN_SERVER_CONNECTIONS = new ConcurrentHashMap<>();
 
   public static String jstack(String className) {
-    for (int i = 0; i < 10; i++) {
-      try {
-        getMBeanServerConnection(className).getDefaultDomain();
-        break;
-      } catch (IOException | WorkerException e) {
-        log.warn("Error calling getDefaultDomain for MBeanServerConnection for class {}, attempt {}", className, i);
-        sleep(1000);
-        THREAD_MX_BEANS.remove(className);
+    boolean clientJstack = RemoteMain.class.getSimpleName().equals(className) || "".equals(className) || (className == null);
+
+    if (!clientJstack) {
+      for (int i = 0; i < 10; i++) {
+        try {
+          getMBeanServerConnection(className).getDefaultDomain();
+          break;
+        } catch (IOException | WorkerException e) {
+          log.warn("Error calling getDefaultDomain for MBeanServerConnection for class {}, attempt {}", className, i);
+          sleep(1000);
+          THREAD_MX_BEANS.remove(className);
+        }
       }
     }
 
-    ThreadMXBean threadMXBean = THREAD_MX_BEANS
-        .computeIfAbsent(className,
-                         cn -> getMxBean(className, ManagementFactory.THREAD_MXBEAN_NAME, ThreadMXBean.class));
+    ThreadMXBean threadMXBean =
+        clientJstack ? ManagementFactory.getThreadMXBean() :
+        THREAD_MX_BEANS.computeIfAbsent(className, cn -> getMxBean(className, ManagementFactory.THREAD_MXBEAN_NAME, ThreadMXBean.class));
 
     long[] allThreadIds = threadMXBean.getAllThreadIds();
     ThreadInfo[] threads = threadMXBean.getThreadInfo(allThreadIds, MAX_FRAMES);
@@ -94,6 +99,11 @@ public class JstackSaverRemote {
 
   // copy ot ThreadInfo.toString() with increased stack trace depth
   private static String threadInfoToString(ThreadInfo ti) {
+    // it seems that some threads may finish between 'getAllThreadIds' and 'getThreadInfo'
+
+    if (ti == null) {
+      return "";
+    }
     StringBuilder sb = new StringBuilder("\"" + ti.getThreadName() + "\""
                                              + " Id=" + ti.getThreadId() + " "
                                              + ti.getThreadState());

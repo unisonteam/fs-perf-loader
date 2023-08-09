@@ -9,6 +9,8 @@
 #optional : set JVM options (default: '-Xmx1G')
 #jvmoptions=....
 #optional : kerberos keytab and principal
+#optional: LD_LIBRARY_PATH env variable for agent (default: /usr/sdp/current/hadoop-client/lib/native)
+#libraries=...
 #kerberos.principal=...
 #kerberos.keytab=...
 
@@ -31,8 +33,6 @@ ssh.key=/home/user/.ssh/private_key
 #conf.MYS3.s3.uri=http://url...
 #it is possible to set S3 endpoint URI in the form of list or template
 #conf.S3.s3.uri=http://host{1..5}.domain:port
-#in case of multiple URIs it's possible to send requests to one of S3 endpoints randomly (default) or to one by one in cycle
-#conf.S3.s3.balance=cycle
 
 fsloader.LOAD.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
 fsloader.LOAD.paths=/tmp/path1,/tmp/path2
@@ -54,6 +54,12 @@ fsloader.LOAD.paths=/tmp/path1,/tmp/path2
 #fsloader.LOAD.conf=MYS3
 #optional: workload json (s3tester format https://github.com/s3tester/s3tester/blob/master/example/workload.json
 #or mixed workload   https://github.com/s3tester/s3tester)
+#additional option to standard s3tester mixed workload format:
+#boolean property for operation
+#"randomRead" : true,  (default: false)
+#it may be applied to read opertaions - get, head, etc (any operation except 'put' and 'delete')
+#if it is used, operation uses not the file created in this sequence but any of files created before.
+#to make this option work the rate of 'delete' command should be less than rate of 'put'
 #fsloader.LOAD.workload=path/to/workload
 
 #total threads, not for each path

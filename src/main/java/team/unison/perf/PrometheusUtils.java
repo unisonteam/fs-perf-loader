@@ -98,8 +98,10 @@ public final class PrometheusUtils {
 
       EXECUTOR_SERVICE.scheduleAtFixedRate(() -> {
         try {
-          log.info("Push collected data");
-          PUSH_GATEWAY.push(COLLECTOR_REGISTRY, JOB_NAME, INSTANCE_GROUPING_KEY);
+          if (INITIALIZED.get()) {
+            log.info("Push collected data");
+            PUSH_GATEWAY.push(COLLECTOR_REGISTRY, JOB_NAME, INSTANCE_GROUPING_KEY);
+          }
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
@@ -107,9 +109,12 @@ public final class PrometheusUtils {
     }
   }
 
-  public static synchronized void clearStatistics() {
+  public static synchronized void clearStatistics(boolean finalCleanup) {
     if (!INITIALIZED.get() || COUNTERS.isEmpty()) {
       return;
+    }
+    if (finalCleanup) {
+      INITIALIZED.set(false);
     }
     try {
       PUSH_GATEWAY.push(COLLECTOR_REGISTRY, JOB_NAME, INSTANCE_GROUPING_KEY);
@@ -117,6 +122,7 @@ public final class PrometheusUtils {
       HISTOGRAM_MAP.values().forEach(COLLECTOR_REGISTRY::unregister);
       COUNTERS.clear();
       HISTOGRAM_MAP.clear();
+      PUSH_GATEWAY.delete(JOB_NAME, INSTANCE_GROUPING_KEY);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

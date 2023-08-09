@@ -21,8 +21,9 @@ public class GenericWorkerBuilder implements Serializable {
   static {
     Runtime.getRuntime().addShutdownHook(new Thread(() -> DEPLOYED_WORKERS.values().forEach(w -> {
       try {
+        log.info("Shut down agent at host {}", w.getHost());
         w.getAgent().shutdown();
-      } catch (IOException e) {
+      } catch (Exception e) {
         log.warn("Error in shutdown", e);
       }
     })));

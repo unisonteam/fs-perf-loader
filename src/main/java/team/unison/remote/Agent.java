@@ -1,6 +1,6 @@
 package team.unison.remote;
 
-import static java.rmi.registry.Registry.REGISTRY_PORT;
+import team.unison.perf.loader.FsLoaderOperationConf;
 
 import java.io.IOException;
 import java.rmi.Remote;
@@ -8,15 +8,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import static java.rmi.registry.Registry.REGISTRY_PORT;
+
 public interface Agent extends Remote {
   String AGENT_REGISTRY_NAME = "Agent";
   int AGENT_REGISTRY_PORT = REGISTRY_PORT;
 
   String info() throws IOException;
 
-  long[] runCommand(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command) throws IOException;
+  long[] runCommand(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command, FsLoaderOperationConf opConf) throws IOException;
 
-  List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload) throws IOException;
+  List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload, FsLoaderOperationConf opConf) throws IOException;
 
   long[] clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) throws IOException;
 

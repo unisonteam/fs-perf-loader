@@ -28,6 +28,8 @@ class HdfsFsWrapper implements FsWrapper {
     if (properties != null) {
       properties.forEach(conf::set);
     }
+    log.info("Create HDFS wrapper for the path {} with following configuration: ", path);
+    conf.forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
     try {
       fs = FileSystem.get(new URI(path), conf);
     } catch (IOException | URISyntaxException e) {
@@ -70,7 +72,8 @@ class HdfsFsWrapper implements FsWrapper {
         // nop
       }
     } catch (IOException e) {
-      throw WorkerException.wrap(e);
+      log.warn("Error getting path: {}", path, e);
+      return false;
     }
     return true;
   }
@@ -85,7 +88,8 @@ class HdfsFsWrapper implements FsWrapper {
     try {
       fs.delete(new Path(path), true);
     } catch (IOException e) {
-      throw WorkerException.wrap(e);
+      log.warn("Error deleting path: {} recursively", path, e);
+      return false;
     }
     return true;
   }

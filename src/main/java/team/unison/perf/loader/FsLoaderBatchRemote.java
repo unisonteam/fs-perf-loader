@@ -1,26 +1,21 @@
 package team.unison.perf.loader;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
 
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+
 public class FsLoaderBatchRemote {
   private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
+  private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
+  private static final int MAX_FILE_POOL_SIZE = 1_000_000; // approximate
 
   // these filenames are not valid - use them to pass extra control metadata
   static final String THREAD_NUMBER_KEY = ":";
@@ -29,7 +24,7 @@ public class FsLoaderBatchRemote {
   static final String LOAD_DELAY_IN_MILLIS_KEY = ":::";
   static final String FILL_KEY = "::::";
 
-  public static long[] runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command) {
+  public static long[] runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command, FsLoaderOperationConf opConf) {
     if (batch.isEmpty()) {
       return new long[0];
     }
@@ -37,32 +32,28 @@ public class FsLoaderBatchRemote {
     long fill = batch.remove(FILL_KEY);
     byte[] barr = getData(fill);
 
-    int threads = batch.remove(THREAD_NUMBER_KEY).intValue();
-    // C style: 0 is false, else is true
-    boolean useTmpFile = batch.remove(USE_TMP_FILE_KEY) != 0;
-    long delayInMillis = batch.remove(LOAD_DELAY_IN_MILLIS_KEY);
-
     long[] ret = new long[batch.size()];
     AtomicInteger pos = new AtomicInteger();
 
-    ExecutorService executorService = Executors.newFixedThreadPool(threads);
+    ExecutorService executorService = Executors.newFixedThreadPool(opConf.getThreadCount());
     String randomPath = batch.keySet().stream().findFirst().get();
-    FsWrapper fsWrapper = FsWrapperFactory.get(randomPath, conf);
+    List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
 
     List<Callable<Object>> callables = batch.entrySet().stream()
-        .map(entry -> Executors.callable(
-            () -> {
-              long start = System.nanoTime();
-              boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), barr, useTmpFile, command);
-              long elapsed = System.nanoTime() - start;
-              PrometheusUtils.record(command.get("operation"), entry.getValue(), success, elapsed / 1_000_000);
-              ret[pos.getAndIncrement()] = elapsed * (success ? 1 : -1);
-              if (delayInMillis > 0) {
-                Utils.sleep(delayInMillis);
-              }
-            }
-        ))
-        .collect(Collectors.toList());
+            .map(entry -> Executors.callable(
+                    () -> {
+                      long start = System.nanoTime();
+                      boolean success = runCommand(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
+                              command);
+                      long elapsed = System.nanoTime() - start;
+                      PrometheusUtils.record(command.get("operation"), entry.getValue(), success, elapsed / 1_000_000);
+                      ret[pos.getAndIncrement()] = elapsed * (success ? 1 : -1);
+                      if (opConf.getLoadDelayInMillis() > 0) {
+                        Utils.sleep(opConf.getLoadDelayInMillis());
+                      }
+                    }
+            ))
+            .collect(Collectors.toList());
     try {
       executorService.invokeAll(callables);
     } catch (InterruptedException e) {
@@ -73,7 +64,7 @@ public class FsLoaderBatchRemote {
     return ret;
   }
 
-  public static List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload) {
+  public static List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload, FsLoaderOperationConf opConf) {
     if (batch.isEmpty()) {
       return Collections.EMPTY_LIST;
     }
@@ -81,25 +72,21 @@ public class FsLoaderBatchRemote {
     long fill = batch.remove(FILL_KEY);
     byte[] barr = getData(fill);
 
-    int threads = batch.remove(THREAD_NUMBER_KEY).intValue();
-    // C style: 0 is false, else is true
-    boolean useTmpFile = batch.remove(USE_TMP_FILE_KEY) != 0;
-    long delayInMillis = batch.remove(LOAD_DELAY_IN_MILLIS_KEY);
-
     List<List<long[]>> batchesResults = new ArrayList<>();
     for (Map<String, String> map : workload) {
       batchesResults.add(new ArrayList<>());
     }
 
     AtomicLong pos = new AtomicLong();
-    ExecutorService executorService = Executors.newFixedThreadPool(threads);
+    ExecutorService executorService = Executors.newFixedThreadPool(opConf.getThreadCount());
     String randomPath = batch.keySet().stream().findFirst().get();
-    FsWrapper fsWrapper = FsWrapperFactory.get(randomPath, conf);
+    List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
+    List<String> filePool = Collections.synchronizedList(new ArrayList<>());
 
     List<Callable<List<long[]>>> callables = batch.entrySet().stream()
-        .map(entry -> ((Callable<List<long[]>>) () ->
-            runWorkloadForSingleFile(fsWrapper, entry.getKey(), entry.getValue(), barr, useTmpFile, delayInMillis, workload, pos)
-        )).collect(Collectors.toList());
+            .map(entry -> ((Callable<List<long[]>>) () ->
+                    runWorkloadForSingleFile(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf, workload, pos, filePool)
+            )).collect(Collectors.toList());
 
     try {
       List<Future<List<long[]>>> futures = executorService.invokeAll(callables);
@@ -137,8 +124,9 @@ public class FsLoaderBatchRemote {
   // [100]
   // [10, 20, 10, 20, 10, 50]
   // [30]
-  private static List<long[]> runWorkloadForSingleFile(FsWrapper fsWrapper, String fileName, Long fileSize, byte[] barr, boolean useTmpFile,
-                                                       long delayInMillis, List<Map<String, String>> workload, AtomicLong seq) {
+  private static List<long[]> runWorkloadForSingleFile(FsWrapper fsWrapper, String fileName, Long fileSize, byte[] barr,
+                                                       FsLoaderOperationConf opConf, List<Map<String, String>> workload, AtomicLong seq,
+                                                       List<String> filePool) {
 
     // json converts all numbers to double
     int firstCommandRatio = (int) Double.parseDouble(workload.get(0).get("ratio"));
@@ -147,6 +135,19 @@ public class FsLoaderBatchRemote {
 
     for (Map<String, String> command : workload) {
       int commandRatio = (int) Double.parseDouble(command.get("ratio"));
+      boolean randomRead = Boolean.parseBoolean(command.get("randomRead"));
+      if ("put".equals(command.get("operationType")) && filePool.size() < MAX_FILE_POOL_SIZE) {
+        filePool.add(fileName);
+      } else if ("delete".equals(command.get("operationType"))) {
+        filePool.remove(fileName);
+      } else if (randomRead) {
+        synchronized (filePool) {
+          // don't use latest files - files may be deleted before read causing errors
+          if (filePool.size() > opConf.getThreadCount()) {
+            fileName = filePool.get(ThreadLocalRandom.current().nextInt(filePool.size() - opConf.getThreadCount()));
+          }
+        }
+      }
       int baseRunCount = commandRatio / firstCommandRatio;
       int variableRunCount = commandSeq % firstCommandRatio < commandRatio % firstCommandRatio ? 1 : 0;
       int timesToRunCommand = baseRunCount + variableRunCount;
@@ -154,12 +155,15 @@ public class FsLoaderBatchRemote {
       ret.add(commandResults);
       for (int i = 0; i < timesToRunCommand; i++) {
         long start = System.nanoTime();
-        boolean success = runCommand(fsWrapper, fileName, fileSize, barr, useTmpFile, command);
+        boolean success = runCommand(fsWrapper, fileName, fileSize, barr, opConf.isUsetmpFile(), command);
         long elapsed = System.nanoTime() - start;
         PrometheusUtils.record(command.get("operationType"), fileSize, success, elapsed / 1_000_000);
+        if (!success) {
+          filePool.remove(fileName);
+        }
         commandResults[i] = elapsed * (success ? 1 : -1);
-        if (delayInMillis > 0) {
-          Utils.sleep(delayInMillis);
+        if (opConf.getLoadDelayInMillis() > 0) {
+          Utils.sleep(opConf.getLoadDelayInMillis());
         }
       }
     }
@@ -172,7 +176,7 @@ public class FsLoaderBatchRemote {
 
     // 0 - no action - leave array filled with zeroes
     if (fill < 0) {
-      new Random().nextBytes(barr);
+      ThreadLocalRandom.current().nextBytes(barr);
     } else if (fill > 0) {
       Arrays.fill(barr, (byte) fill);
     }
@@ -195,5 +199,9 @@ public class FsLoaderBatchRemote {
       return fsWrapper.delete(command.get("bucket"), path);
     }
     throw new IllegalArgumentException("command " + op + " is not supported");
+  }
+
+  private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {
+    return fsWrappers.get(FS_WRAPPER_COUNTER.getAndIncrement() % fsWrappers.size());
   }
 }
