@@ -169,4 +169,25 @@ public final class PerfLoaderUtils {
     int index = (int) Math.ceil(percentile * (double) arr.length);
     return arr[index - 1];
   }
+
+  public static long toSize(String s) {
+    long unit = 1;
+    switch (s.charAt(s.length() - 1)) {
+      case 'K':
+      case 'k':
+        unit = 1024;
+        break;
+      case 'M':
+      case 'm':
+        unit = 1024 * 1024;
+        break;
+      case 'G':
+      case 'g':
+        unit = 1024 * 1024 * 1024;
+        break;
+      default:
+    }
+
+    return unit * Long.parseLong(unit == 1 ? s : s.substring(0, s.length() - 1));
+  }
 }

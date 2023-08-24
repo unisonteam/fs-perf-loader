@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.cleaner.FsCleaner;
+import team.unison.perf.filetransfer.FileTransfer;
 import team.unison.perf.jstack.JstackSaver;
 import team.unison.perf.loader.FsLoader;
 import team.unison.remote.SshConnectionBuilder;
@@ -45,11 +46,12 @@ public final class PerfLoaderMain {
 
     List<FsLoader> fsLoaders = FsLoaderPropertiesBuilder.build(properties, sshConnectionBuilder);
     List<JstackSaver> jstackSavers = JstackSaverPropertiesBuilder.build(properties, sshConnectionBuilder);
+    List<FileTransfer> fileTransfers = FileTransferPropertiesBuilder.build(properties, sshConnectionBuilder);
 
-    if (!jstackSavers.isEmpty()) {
-      jstackSavers.forEach(j -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(j, j.getPeriod().toMillis(), j.getPeriod().toMillis(),
-                                                                               TimeUnit.MILLISECONDS));
-    }
+    jstackSavers.forEach(j -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(j, j.getPeriod().toMillis(), j.getPeriod().toMillis(),
+                                                                             TimeUnit.MILLISECONDS));
+    fileTransfers.forEach(f -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(f, f.getPeriod().toMillis(), f.getPeriod().toMillis(),
+                                                                              TimeUnit.MILLISECONDS));
 
     if (!fsLoaders.isEmpty()) {
       ExecutorService executorService = Executors.newFixedThreadPool(fsLoaders.size());

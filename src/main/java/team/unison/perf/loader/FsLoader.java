@@ -95,7 +95,8 @@ public final class FsLoader implements Runnable {
       this.workload = new ArrayList<>(workload);
     }
 
-    List<Long> filesSizesPartial = distributionToList(filesSizesDistribution).stream().map(FsLoader::toSize).collect(Collectors.toList());
+    List<Long> filesSizesPartial = distributionToList(filesSizesDistribution).stream().map(PerfLoaderUtils::toSize).collect(
+        Collectors.toList());
     List<String> filesSuffixesPartial = distributionToList(filesSuffixesDistribution);
 
     // If we have 100 subdirs and 100 suffixes - suffixes will be distributed not evenly but subdir 1 will always have suffix 1, subdir 2
@@ -364,27 +365,6 @@ public final class FsLoader implements Runnable {
       PerfLoaderUtils.printStatistics(header, op, conf == null ? null : conf.get("s3.uri"),
               threads * genericWorkerBuilders.size(), averageObjectSize, globalResults, duration);
     }
-  }
-
-  private static long toSize(String s) {
-    long unit = 1;
-    switch (s.charAt(s.length() - 1)) {
-      case 'K':
-      case 'k':
-        unit = 1024;
-        break;
-      case 'M':
-      case 'm':
-        unit = 1024 * 1024;
-        break;
-      case 'G':
-      case 'g':
-        unit = 1024 * 1024 * 1024;
-        break;
-      default:
-    }
-
-    return unit * Long.parseLong(unit == 1 ? s : s.substring(0, s.length() - 1));
   }
 
   private static String randomFileName(Random rnd) {

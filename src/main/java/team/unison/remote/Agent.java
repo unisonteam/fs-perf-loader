@@ -29,4 +29,6 @@ public interface Agent extends Remote {
   void clearStatistics() throws IOException;
 
   String jstack(String className) throws IOException;
+
+  byte[] nextChunk(String path) throws IOException;
 }

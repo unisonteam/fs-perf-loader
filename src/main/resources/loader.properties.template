@@ -108,9 +108,12 @@ fsloader.LOAD.batch.file.suffixes=90:good,10:bad
 #optional, default - 8 threads
 #fscleaner.CLEAN.threads=10
 
+#directory where jstack and other files will be stored
+files.dir=C:/Temp/
 jstack.CLIENT.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
 jstack.CLIENT.class=RemoteMain
-jstack.CLIENT.file.prefix=C:/Temp/client.jstack
+#file relative to files directory
+jstack.CLIENT.file.prefix=client.jstack
 #optional - store all jstacks to a single file or separate files (default = true - single file)
 #jstack.CLIENT.file.single=true
 #optional, default: 30
@@ -123,6 +126,12 @@ jstack.CLIENT.file.prefix=C:/Temp/client.jstack
 #jstack.CLIENT.user=serviceuser
 #optional - group that should be used to connect to Java process
 #jstack.CLIENT.group=servicegroup
+
+#transfer a file from the remote host to local directory set in 'files.dir' property
+file.LOG.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
+#optional: path to a file to transfer from the remote host. default: path to agent log
+#file.LOG.path=/path/to/file
+#user, group, period, file.gzip, file.append, file.prefix are the same as for jstack (file.single is not applicable)
 
 #examples for processes:
 #client: class=RemoteMain, user - empty

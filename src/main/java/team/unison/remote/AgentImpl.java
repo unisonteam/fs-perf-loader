@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.cleaner.FsCleanerRemote;
+import team.unison.perf.filetransfer.FileTransferRemote;
 import team.unison.perf.jstack.JstackSaverRemote;
 import team.unison.perf.loader.FsLoaderBatchRemote;
 import team.unison.perf.loader.FsLoaderOperationConf;
@@ -83,6 +84,11 @@ class AgentImpl implements Agent, Unreferenced {
   @Override
   public String jstack(String className) throws IOException {
     return JstackSaverRemote.jstack(className);
+  }
+
+  @Override
+  public byte[] nextChunk(String path) {
+    return FileTransferRemote.nextChunk(path);
   }
 
   @Override

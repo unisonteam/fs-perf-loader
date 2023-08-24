@@ -3,7 +3,7 @@ package team.unison.perf.fswrapper;
 import java.io.InputStream;
 
 class EndlessInputStream extends InputStream {
-  final byte[] barr;
+  private final byte[] barr;
 
   EndlessInputStream(byte[] barr) {
     this.barr = barr;

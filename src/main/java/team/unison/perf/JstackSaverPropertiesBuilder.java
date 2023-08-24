@@ -25,10 +25,11 @@ public class JstackSaverPropertiesBuilder {
               .systemGroup(props.getProperty(prefix + "group"));
 
       List<String> hosts = PerfLoaderUtils.parseTemplate(props.getProperty(prefix + "hosts").replace(" ", ""));
+      String filesDir = props.getProperty("files.dir", System.getProperty("java.io.tmpdir")) + "/";
       for (String host : hosts) {
         JstackSaver jstackSaver = new JstackSaverBuilder()
                 .className(props.getProperty(prefix + "class"))
-                .filePrefix(props.getProperty(prefix + "file.prefix"))
+                .filePrefix(filesDir + props.getProperty(prefix + "file.prefix"))
                 .fileAppend(Boolean.parseBoolean(props.getProperty(prefix + "file.append", "false")))
                 .fileGzip(Boolean.parseBoolean(props.getProperty(prefix + "file.gzip", "false")))
                 .fileSingle(Boolean.parseBoolean(props.getProperty(prefix + "file.single", "true")))

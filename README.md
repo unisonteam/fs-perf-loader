@@ -15,5 +15,5 @@ edit `loader.properties`
 
 ```
 ./gradlew clean build
-java -jar ./build/libs/fat-perf-loader-1.0.17-fat.jar
+java -jar ./build/libs/fat-perf-loader-1.0.19-fat.jar
 ```

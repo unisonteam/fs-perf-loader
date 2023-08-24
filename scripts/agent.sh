@@ -20,6 +20,6 @@ if [ ! -d $DEPLOY_SCRIPT_DIR/lib ] ; then
 fi
 
 AGENT_CLASSPATH="$DEPLOY_SCRIPT_DIR/agent.jar:$DEPLOY_SCRIPT_DIR/lib/*"
-LOG_FILE=$DEPLOY_SCRIPT_DIR/logs/$$.log
+export LOG_FILE=$DEPLOY_SCRIPT_DIR/logs/$$.log
 
 nohup $JAVA_COMMAND -Djava.net.preferIPv4Stack=true -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=. -cp /etc/ozone/conf:/etc/hadoop/conf:$JAVA_HOME/lib/tools.jar:$AGENT_CLASSPATH team.unison.remote.RemoteMain "$@" > $LOG_FILE 2>&1 &
