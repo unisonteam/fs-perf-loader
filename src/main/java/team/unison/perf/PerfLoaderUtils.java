@@ -121,6 +121,10 @@ public final class PerfLoaderUtils {
   public static void printStatistics(String header, String operation, String endpoint, int concurrency, long averageObjectSize,
                                      long[] results, Duration duration) {
     long durationInSeconds = duration.toMillis() / 1000;
+    long failedRequests = Arrays.stream(results).filter(l -> l <= 0).count();
+    for (int i = 0; i < results.length; i++) {
+      results[i] = Math.abs(results[i]);
+    }
     Arrays.sort(results);
     System.out.printf("%s%n", header);
     System.out.printf("            --- Total Results ---%n");
@@ -130,7 +134,7 @@ public final class PerfLoaderUtils {
     }
     System.out.printf("Concurrency: %d%n", concurrency);
     System.out.printf("Total number of requests: %d%n", results.length);
-    System.out.printf("Failed requests: %d%n", Arrays.stream(results).filter(l -> l <= 0).count());
+    System.out.printf("Failed requests: %d%n", failedRequests);
     System.out.printf("Total elapsed time: %fs%n", ((double) Arrays.stream(results).sum()) / 1_000_000_000);
     System.out.printf("Duration: %ds%n", durationInSeconds);
     if (durationInSeconds != 0) {

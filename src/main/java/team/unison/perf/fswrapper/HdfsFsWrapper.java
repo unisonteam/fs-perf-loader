@@ -1,11 +1,16 @@
 package team.unison.perf.fswrapper;
 
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS_DEFAULT;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -13,6 +18,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.ozone.om.protocolPB.OmTransportFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.remote.WorkerException;
@@ -28,10 +35,37 @@ class HdfsFsWrapper implements FsWrapper {
     if (properties != null) {
       properties.forEach(conf::set);
     }
-    log.info("Create HDFS wrapper for the path {} with following configuration: ", path);
-    conf.forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
     try {
       fs = FileSystem.get(new URI(path), conf);
+      log.info("Created HDFS wrapper for the path {} with following configuration: ", path);
+      fs.getConf().forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
+
+      if (path.startsWith("ofs://")) {
+        log.info("Ozone configuration for path {}: ", path);
+        OzoneConfiguration ozConf = OzoneConfiguration.of(fs.getConf());
+        ozConf.forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
+
+        log.info("Value of configuration property for Ozone transport: {}",
+                 ozConf.get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT));
+
+        if (ozConf
+            .get(OZONE_OM_TRANSPORT_CLASS,
+                 OZONE_OM_TRANSPORT_CLASS_DEFAULT) !=
+            OZONE_OM_TRANSPORT_CLASS_DEFAULT) {
+          log.info("Ozone transport non-default branch.");
+          ServiceLoader<OmTransportFactory> transportFactoryServiceLoader =
+              ServiceLoader.load(OmTransportFactory.class);
+          Iterator<OmTransportFactory> iterator =
+              transportFactoryServiceLoader.iterator();
+          if (iterator.hasNext()) {
+            log.info("Load transport from service loader, class: {}", iterator.next().getClass().getName());
+          } else {
+            log.info("Tried to load transport from service loader but nothing was found");
+            log.info("Fall back to default ozone transport {}", OZONE_OM_TRANSPORT_CLASS_DEFAULT);
+          }
+        }
+      }
+
     } catch (IOException | URISyntaxException e) {
       throw WorkerException.wrap(e);
     }
