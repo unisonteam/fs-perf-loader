@@ -34,7 +34,7 @@ ssh.key=/home/user/.ssh/private_key
 #it is possible to set S3 endpoint URI in the form of list or template
 #conf.S3.s3.uri=http://host{1..5}.domain:port
 
-fsloader.LOAD.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
+fsloader.LOAD.hosts=fat01-vm1.unison.team,fat01-vm2.unison.team
 fsloader.LOAD.paths=/tmp/path1,/tmp/path2
 #alternative way to specify paths (and hosts): 'count:mask'
 #fsloader.LOAD.paths=5:/tmp/path%03d
@@ -110,7 +110,7 @@ fsloader.LOAD.batch.file.suffixes=90:good,10:bad
 
 #directory where jstack and other files will be stored
 files.dir=C:/Temp/
-jstack.CLIENT.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
+jstack.CLIENT.hosts=fat01-vm1.unison.team,fat01-vm2.unison.team
 jstack.CLIENT.class=RemoteMain
 #file relative to files directory
 jstack.CLIENT.file.prefix=client.jstack
@@ -128,7 +128,7 @@ jstack.CLIENT.file.prefix=client.jstack
 #jstack.CLIENT.group=servicegroup
 
 #transfer a file from the remote host to local directory set in 'files.dir' property
-file.LOG.hosts=fat01-vm1.sbrf.ru,fat01-vm2.sbrf.ru
+file.LOG.hosts=fat01-vm1.unison.team,fat01-vm2.unison.team
 #optional: path to a file to transfer from the remote host. default: path to agent log
 #file.LOG.path=/path/to/file
 #user, group, period, file.gzip, file.append, file.prefix are the same as for jstack (file.single is not applicable)

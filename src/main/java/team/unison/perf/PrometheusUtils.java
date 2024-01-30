@@ -1,26 +1,30 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf;
 
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Histogram;
 import io.prometheus.client.exporter.PushGateway;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import team.unison.perf.loader.FsLoaderBatchRemote;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import team.unison.perf.loader.FsLoaderBatchRemote;
 
 public final class PrometheusUtils {
   private static final Logger log = LoggerFactory.getLogger(FsLoaderBatchRemote.class);
@@ -32,8 +36,8 @@ public final class PrometheusUtils {
   private static final String PROCESS_NAME = "perfloader";
   private static final String JOB_NAME = "perfloaderjob";
   private static final List<Long> HISTOGRAM_BUCKETS = new ArrayList<>(Arrays.asList(10L, 20L, 30L, 40L, 50L,
-                                                                                    100L, 200L, 300L, 400L, 500L,
-                                                                                    1_000L, 2_000L, 5_000L, 10_000L));
+          100L, 200L, 300L, 400L, 500L,
+          1_000L, 2_000L, 5_000L, 10_000L));
   private static PushGateway PUSH_GATEWAY;
   private static final Map<String, String> INSTANCE_GROUPING_KEY = new HashMap<>();
 
@@ -62,20 +66,20 @@ public final class PrometheusUtils {
     String operationName = String.format("fsloader_%s_%s_operations_latency_ms", success ? "successful" : "failed", command);
 
     return HISTOGRAM_MAP.computeIfAbsent(operationName, n -> Histogram.build()
-        .name(operationName)
-        .help("Latency of " + command + " requests.")
-        .labelNames("hostname", "processname")
-        .buckets(HISTOGRAM_BUCKETS.stream().mapToDouble(l -> (double) l).toArray())
-        .register(COLLECTOR_REGISTRY));
+            .name(operationName)
+            .help("Latency of " + command + " requests.")
+            .labelNames("hostname", "processname")
+            .buckets(HISTOGRAM_BUCKETS.stream().mapToDouble(l -> (double) l).toArray())
+            .register(COLLECTOR_REGISTRY));
   }
 
   private static Counter getOperationsCounter(String command, boolean success) {
     String operationName = String.format("fsloader_%s_%s_operations", success ? "successful" : "failed", command);
 
     return COUNTERS.computeIfAbsent(operationName, n -> Counter.build()
-        .name(n)
-        .labelNames("hostname", "processname", "objectsize")
-        .help("Total " + command + " requests.").register(COLLECTOR_REGISTRY));
+            .name(n)
+            .labelNames("hostname", "processname", "objectsize")
+            .help("Total " + command + " requests.").register(COLLECTOR_REGISTRY));
   }
 
   public static synchronized void init(Properties properties) {

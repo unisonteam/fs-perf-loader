@@ -1,4 +1,15 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.remote;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.io.Serializable;
@@ -6,8 +17,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SshConnectionBuilder implements Serializable {
   private static final Logger log = LoggerFactory.getLogger(SshConnectionBuilder.class);
@@ -129,7 +138,7 @@ public class SshConnectionBuilder implements Serializable {
   @Override
   public String toString() {
     return "SshConnectionBuilder{host='" + host + '\'' + ", sshUser='" + sshUser + '\'' + ", identity='" + identity + '\'' + ", "
-        + "password='" + password + '\'' + ", systemUser='" + systemUser + '\'' + ", systemGroup='" + systemGroup + '\'' + '}';
+            + "password='" + password + '\'' + ", systemUser='" + systemUser + '\'' + ", systemGroup='" + systemGroup + '\'' + '}';
   }
 
   @Override
@@ -142,7 +151,7 @@ public class SshConnectionBuilder implements Serializable {
     }
     SshConnectionBuilder that = (SshConnectionBuilder) o;
     return Objects.equals(host, that.host) && Objects.equals(sshUser, that.sshUser) && Objects.equals(systemUser, that.systemUser)
-        && Objects.equals(systemGroup, that.systemGroup);
+            && Objects.equals(systemGroup, that.systemGroup);
   }
 
   @Override

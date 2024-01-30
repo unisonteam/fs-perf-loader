@@ -1,10 +1,18 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.remote;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import team.unison.perf.PerfLoaderUtils;
+
+import java.io.*;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,9 +24,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import team.unison.perf.PerfLoaderUtils;
 
 final class RemoteExec {
   private static final Logger log = LoggerFactory.getLogger(RemoteExec.class);
@@ -34,7 +39,7 @@ final class RemoteExec {
     DEPLOYED_AGENT_PORT++;
 
     String fullAgentStartCommand =
-        getScriptPath() + " " + sshConnectionBuilder.getHost() + " " + agentRegistryName + " " + DEPLOYED_AGENT_PORT;
+            getScriptPath() + " " + sshConnectionBuilder.getHost() + " " + agentRegistryName + " " + DEPLOYED_AGENT_PORT;
     Map<String, String> env = new HashMap<>();
     env.put("_JAVA_OPTIONS", PerfLoaderUtils.getGlobalProperties().getProperty("jvmoptions", "-Xmx1G"));
     env.put("LD_LIBRARY_PATH", PerfLoaderUtils.getGlobalProperties().getProperty("libraries", "/usr/sdp/current/hadoop-client/lib/native"));
@@ -94,7 +99,7 @@ final class RemoteExec {
     int week = now.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
 
     return String.format(DEPLOY_DIR_MASK, getVersionTag(), week).replaceAll("/+$", "")
-        .replace(':', '-');
+            .replace(':', '-');
   }
 
   private static String getVersionTag() {

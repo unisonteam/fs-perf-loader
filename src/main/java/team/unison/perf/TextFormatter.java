@@ -1,3 +1,11 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf;
 
 import java.math.BigDecimal;
@@ -40,7 +48,6 @@ public class TextFormatter {
    * Formats a file's size into a human readable format
    *
    * @param fileSize the file's size as BigInteger
-   *
    * @return the size as human readable string
    */
   public static String byteCountToDisplaySize(final BigInteger fileSize) {
@@ -80,7 +87,6 @@ public class TextFormatter {
    * Formats a file's size into a human readable format
    *
    * @param fileSize the file's size as long
-   *
    * @return the size as human readable string
    */
   public static String byteCountToDisplaySize(long fileSize) {
@@ -92,7 +98,7 @@ public class TextFormatter {
    */
   public static String bytesPerSecondToSpeed(long bytesPerSecond) {
     return byteCountToDisplaySize(BigInteger.valueOf(bytesPerSecond * 8))
-        .replace("B", "ibit/s")
-        .replace("bytes", "bit/s");
+            .replace("B", "ibit/s")
+            .replace("bytes", "bit/s");
   }
 }

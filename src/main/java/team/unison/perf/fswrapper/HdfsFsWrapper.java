@@ -1,28 +1,28 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf.fswrapper;
 
-import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS;
-import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS_DEFAULT;
-
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.ServiceLoader;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.LocatedFileStatus;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.fs.*;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.om.protocolPB.OmTransportFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.remote.WorkerException;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.*;
+
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS_DEFAULT;
 
 class HdfsFsWrapper implements FsWrapper {
   private static final Logger log = LoggerFactory.getLogger(HdfsFsWrapper.class);
@@ -46,17 +46,17 @@ class HdfsFsWrapper implements FsWrapper {
         ozConf.forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
 
         log.info("Value of configuration property for Ozone transport: {}",
-                 ozConf.get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT));
+                ozConf.get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT));
 
         if (ozConf
-            .get(OZONE_OM_TRANSPORT_CLASS,
-                 OZONE_OM_TRANSPORT_CLASS_DEFAULT) !=
-            OZONE_OM_TRANSPORT_CLASS_DEFAULT) {
+                .get(OZONE_OM_TRANSPORT_CLASS,
+                        OZONE_OM_TRANSPORT_CLASS_DEFAULT) !=
+                OZONE_OM_TRANSPORT_CLASS_DEFAULT) {
           log.info("Ozone transport non-default branch.");
           ServiceLoader<OmTransportFactory> transportFactoryServiceLoader =
-              ServiceLoader.load(OmTransportFactory.class);
+                  ServiceLoader.load(OmTransportFactory.class);
           Iterator<OmTransportFactory> iterator =
-              transportFactoryServiceLoader.iterator();
+                  transportFactoryServiceLoader.iterator();
           if (iterator.hasNext()) {
             log.info("Load transport from service loader, class: {}", iterator.next().getClass().getName());
           } else {

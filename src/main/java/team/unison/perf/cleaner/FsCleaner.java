@@ -1,4 +1,19 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf.cleaner;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import team.unison.perf.PerfLoaderUtils;
+import team.unison.remote.GenericWorker;
+import team.unison.remote.GenericWorkerBuilder;
+import team.unison.remote.WorkerException;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -7,12 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import team.unison.perf.PerfLoaderUtils;
-import team.unison.remote.GenericWorker;
-import team.unison.remote.GenericWorkerBuilder;
-import team.unison.remote.WorkerException;
 
 public final class FsCleaner implements Runnable {
   private static final Logger log = LoggerFactory.getLogger(FsCleaner.class);

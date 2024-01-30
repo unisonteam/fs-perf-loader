@@ -1,6 +1,6 @@
 apply plugin: 'java'
 
-group = 'teanm.unison'
+group = 'team.unison'
 version = '1.0.21'
 def formatGMT = new java.text.SimpleDateFormat("yyyy-MM-dd-HH:mm:ss")
 formatGMT.setTimeZone(TimeZone.getTimeZone("GMT"))

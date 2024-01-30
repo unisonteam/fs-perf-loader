@@ -1,17 +1,26 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf;
+
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import team.unison.remote.SshConnectionBuilder;
+import team.unison.remote.SshRunResult;
+
+import java.time.Duration;
+import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.junit.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import java.time.Duration;
-import java.util.Arrays;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
-import team.unison.remote.SshConnectionBuilder;
-import team.unison.remote.SshRunResult;
 
 @Disabled
 public class SshClientTest {
@@ -26,7 +35,7 @@ public class SshClientTest {
   @Test
   public void timeoutExceeded() {
     assertThrows(RuntimeException.class, () ->
-        sshConnectionBuilder.run("sleep 60; echo hello 60 seconds", Duration.ofSeconds(10)));
+            sshConnectionBuilder.run("sleep 60; echo hello 60 seconds", Duration.ofSeconds(10)));
   }
 
   @Test

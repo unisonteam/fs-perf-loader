@@ -1,6 +1,16 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.remote;
 
-import static team.unison.remote.Utils.sleep;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import team.unison.perf.PerfLoaderUtils;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -8,9 +18,8 @@ import java.rmi.Naming;
 import java.rmi.NotBoundException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import team.unison.perf.PerfLoaderUtils;
+
+import static team.unison.remote.Utils.sleep;
 
 public class GenericWorkerBuilder implements Serializable {
   private static final Logger log = LoggerFactory.getLogger(GenericWorkerBuilder.class);
@@ -46,8 +55,8 @@ public class GenericWorkerBuilder implements Serializable {
 
   public static GenericWorker newInstance(SshConnectionBuilder sshConnectionBuilder) {
     String agentRegistryName = Agent.AGENT_REGISTRY_NAME
-        + (sshConnectionBuilder.getSystemUser() == null ? "" : "_" + sshConnectionBuilder.getSystemUser())
-        + (sshConnectionBuilder.getSystemGroup() == null ? "" : "__" + sshConnectionBuilder.getSystemGroup());
+            + (sshConnectionBuilder.getSystemUser() == null ? "" : "_" + sshConnectionBuilder.getSystemUser())
+            + (sshConnectionBuilder.getSystemGroup() == null ? "" : "__" + sshConnectionBuilder.getSystemGroup());
 
     String connectionLocation = "//" + sshConnectionBuilder.getHost() + ":" + Agent.AGENT_REGISTRY_PORT + "/" + agentRegistryName;
     log.info("Connection location: " + connectionLocation);

@@ -1,3 +1,11 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf.jstack;
 
 import com.sun.tools.attach.VirtualMachine;
@@ -46,8 +54,8 @@ public class JstackSaverRemote {
     }
 
     ThreadMXBean threadMXBean =
-        clientJstack ? ManagementFactory.getThreadMXBean() :
-        THREAD_MX_BEANS.computeIfAbsent(className, cn -> getMxBean(className, ManagementFactory.THREAD_MXBEAN_NAME, ThreadMXBean.class));
+            clientJstack ? ManagementFactory.getThreadMXBean() :
+                    THREAD_MX_BEANS.computeIfAbsent(className, cn -> getMxBean(className, ManagementFactory.THREAD_MXBEAN_NAME, ThreadMXBean.class));
 
     long[] allThreadIds = threadMXBean.getAllThreadIds();
     ThreadInfo[] threads = threadMXBean.getThreadInfo(allThreadIds, MAX_FRAMES);
@@ -105,8 +113,8 @@ public class JstackSaverRemote {
       return "";
     }
     StringBuilder sb = new StringBuilder("\"" + ti.getThreadName() + "\""
-                                             + " Id=" + ti.getThreadId() + " "
-                                             + ti.getThreadState());
+            + " Id=" + ti.getThreadId() + " "
+            + ti.getThreadState());
     if (ti.getLockName() != null) {
       sb.append(" on " + ti.getLockName());
     }

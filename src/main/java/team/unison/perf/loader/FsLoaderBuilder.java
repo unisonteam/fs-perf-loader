@@ -1,13 +1,17 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf.loader;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
 import team.unison.remote.GenericWorkerBuilder;
+
+import java.time.Duration;
+import java.util.*;
 
 public class FsLoaderBuilder {
   private String name;
@@ -155,23 +159,23 @@ public class FsLoaderBuilder {
 
   public FsLoader createFsLoader() {
     return new FsLoader(name, conf, genericWorkerBuilders, threads, paths, workload, subdirsWidth, subdirsDepth, subdirsFormat, batches,
-                        useTmpFile, loadDelay, commandDelay, count, period, filesInBatch, filesSizesDistribution, filesSuffixesDistribution,
-                        fill,
-                        random, type);
+            useTmpFile, loadDelay, commandDelay, count, period, filesInBatch, filesSizesDistribution, filesSuffixesDistribution,
+            fill,
+            random, type);
   }
 
   @Override
   public String toString() {
     return "FsLoaderBuilder{"
-        + "name=" + name
-        + ", threads=" + threads + ", paths=" + paths + ", subdirsWidth=" + subdirsWidth
-        + ", subdirsDepth=" + subdirsDepth + ", subdirsFormat=" + subdirsFormat
-        + ", type=" + type + ", batches=" + batches
-        + ", useTmpFile=" + useTmpFile + ", loadDelay=" + loadDelay + ", commandDelay=" + commandDelay
-        + ", count=" + count + ", period=" + period
-        + ", filesInBatch=" + filesInBatch + ", batchTimeout=" + batchTimeout + ", filesSizesDistribution='" + filesSizesDistribution + '\''
-        + ", filesSuffixesDistribution='" + filesSuffixesDistribution
-        + ", fill='" + fill
-        + '\'' + '}';
+            + "name=" + name
+            + ", threads=" + threads + ", paths=" + paths + ", subdirsWidth=" + subdirsWidth
+            + ", subdirsDepth=" + subdirsDepth + ", subdirsFormat=" + subdirsFormat
+            + ", type=" + type + ", batches=" + batches
+            + ", useTmpFile=" + useTmpFile + ", loadDelay=" + loadDelay + ", commandDelay=" + commandDelay
+            + ", count=" + count + ", period=" + period
+            + ", filesInBatch=" + filesInBatch + ", batchTimeout=" + batchTimeout + ", filesSizesDistribution='" + filesSizesDistribution + '\''
+            + ", filesSuffixesDistribution='" + filesSuffixesDistribution
+            + ", fill='" + fill
+            + '\'' + '}';
   }
 }

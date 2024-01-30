@@ -1,12 +1,16 @@
-package team.unison.perf;
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
 
-import static team.unison.perf.TextFormatter.byteCountToDisplaySize;
-import static team.unison.perf.TextFormatter.bytesPerSecondToSpeed;
+package team.unison.perf;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import org.apache.commons.io.FileUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -15,6 +19,9 @@ import java.time.Duration;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static team.unison.perf.TextFormatter.byteCountToDisplaySize;
+import static team.unison.perf.TextFormatter.bytesPerSecondToSpeed;
 
 public final class PerfLoaderUtils {
   private static final Properties GLOBAL_PROPERTIES = new Properties();

@@ -1,16 +1,13 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Properties;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.cleaner.FsCleaner;
@@ -19,6 +16,14 @@ import team.unison.perf.jstack.JstackSaver;
 import team.unison.perf.loader.FsLoader;
 import team.unison.remote.SshConnectionBuilder;
 import team.unison.remote.SshConnectionFactory;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 public final class PerfLoaderMain {
   private static final Logger log = LoggerFactory.getLogger(PerfLoaderMain.class);
@@ -49,16 +54,16 @@ public final class PerfLoaderMain {
     List<FileTransfer> fileTransfers = FileTransferPropertiesBuilder.build(properties, sshConnectionBuilder);
 
     jstackSavers.forEach(j -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(j, j.getPeriod().toMillis(), j.getPeriod().toMillis(),
-                                                                             TimeUnit.MILLISECONDS));
+            TimeUnit.MILLISECONDS));
     fileTransfers.forEach(f -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(f, f.getPeriod().toMillis(), f.getPeriod().toMillis(),
-                                                                              TimeUnit.MILLISECONDS));
+            TimeUnit.MILLISECONDS));
 
     if (!fsLoaders.isEmpty()) {
       ExecutorService executorService = Executors.newFixedThreadPool(fsLoaders.size());
 
       List<Callable<Object>> callables = fsLoaders.stream()
-          .map(Executors::callable)
-          .collect(Collectors.toList());
+              .map(Executors::callable)
+              .collect(Collectors.toList());
 
       try {
         try {

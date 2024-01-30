@@ -1,3 +1,11 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf;
 
 import java.util.HashMap;
@@ -12,7 +20,7 @@ final class ConfsPropertiesBuilder {
 
   static void build(Properties properties) {
     Set<String> confNames = properties.stringPropertyNames().stream().filter(s -> s.startsWith("conf.")).map(s -> s.split("\\.")[1])
-        .collect(Collectors.toSet());
+            .collect(Collectors.toSet());
 
     Map<String, Map<String, String>> confs = new HashMap<>();
     for (String confName : confNames) {

@@ -1,3 +1,11 @@
+/*
+ *  Copyright (C) 2024 Unison LLC - All Rights Reserved
+ *  You may use, distribute and modify this code under the
+ *  terms of the License.
+ *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
 package team.unison.perf.loader;
 
 import org.slf4j.Logger;
@@ -96,7 +104,7 @@ public final class FsLoader implements Runnable {
     }
 
     List<Long> filesSizesPartial = distributionToList(filesSizesDistribution).stream().map(PerfLoaderUtils::toSize).collect(
-        Collectors.toList());
+            Collectors.toList());
     List<String> filesSuffixesPartial = distributionToList(filesSuffixesDistribution);
 
     // If we have 100 subdirs and 100 suffixes - suffixes will be distributed not evenly but subdir 1 will always have suffix 1, subdir 2
