@@ -1,7 +1,7 @@
 ﻿Performance loader
 =========
 
-Yada yada
+Tool to create a distributed workload on Hadoop and Ozone clusters.
 
 ### How to run
 
