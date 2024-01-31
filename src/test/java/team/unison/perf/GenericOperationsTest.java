@@ -1,9 +1,8 @@
 /*
- *  Copyright (C) 2024 Unison LLC - All Rights Reserved
- *  You may use, distribute and modify this code under the
- *  terms of the License.
- *  For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
- *
+ * Copyright (C) 2024 Unison LLC - All Rights Reserved
+ * You may use, distribute and modify this code under the
+ * terms of the License.
+ * For full text of License visit : https://www.apache.org/licenses/LICENSE-2.0
  */
 
 package team.unison.perf;
@@ -27,11 +26,11 @@ public class GenericOperationsTest {
   }
 
   // SSH:
-  // 3-arg DemoIpCommand 100 циклов 3 мин 25 сек = 200 сек
-  // один вызов - 2 сек
+  // 3-arg DemoIpCommand 100 loops 3 min 25 sec = 200 sec
+  // one call - 2 сек
   // RPC:
-  // 3-arg DemoIpCommand 10_000 циклов 8 сек
-  // один вызов - 0.0008 сек
+  // 3-arg DemoIpCommand 10_000 loops 8 sec
+  // one call - 0.0008 sec
   @Test
   public void testLoop() throws IOException {
     for (int i = 0; i < 10_000; i++) {
