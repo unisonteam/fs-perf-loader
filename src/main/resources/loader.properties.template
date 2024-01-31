@@ -1,7 +1,7 @@
 #in lower case: reserved words
 #in upper case: examples that may be replaced with any value
 
-#it is possible to have many loaders and movers in one config
+#it is possible to have many loaders and cleaners in one config
 #use same seed to repeat the same load - file names and sizes.
 #if seed is not set, it is taken from Unix timestamp
 #seed=12345
@@ -97,6 +97,20 @@ fsloader.LOAD.batch.file.suffixes=90:good,10:bad
 #fsloader.LOAD.period=60
 #optional: fill files with random data (=random) or with a predefined char (=0 for zeroes, =97 for 'a', etc). default: random
 #fsloader.LOAD.fill=random
+
+#same as in fsloader
+#snapshot.SNAP.hosts=fat01-vm1.unison.team,fat01-vm2.unison.team
+#snapshot.SNAP.paths=/tmp/path1
+#snapshot.SNAP.threads=3
+#snapshot.SNAP.subdirs.depth=2
+#snapshot.SNAP.subdirs.width=3
+#snapshot.SNAP.subdirs.format=dir%03d
+#number of paths in one snapshot batch
+#snapshot.SNAP.batch.path.count=10
+#optional: in seconds - delay between snapshot batches (default: 60)
+#snapshot.SNAP.period=60
+#optional: name of snapshot (default: 'snapshot')
+#snapshot.SNAP.name=snapshot
 
 #FS cleaner. Runs on one host only
 #fscleaner.CLEAN.paths=/tmp/path{19..21}

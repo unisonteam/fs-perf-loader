@@ -8,6 +8,8 @@
 package team.unison.remote;
 
 import team.unison.perf.loader.FsLoaderOperationConf;
+import team.unison.perf.snapshot.FsSnapshotterOperationConf;
+import team.unison.perf.stats.StatisticsDTO;
 
 import java.io.IOException;
 import java.rmi.Remote;
@@ -23,11 +25,15 @@ public interface Agent extends Remote {
 
   String info() throws IOException;
 
-  long[] runCommand(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command, FsLoaderOperationConf opConf) throws IOException;
+  StatisticsDTO runCommand(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command,
+                           FsLoaderOperationConf opConf) throws IOException;
 
-  List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload, FsLoaderOperationConf opConf) throws IOException;
+  StatisticsDTO runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload,
+                                 FsLoaderOperationConf opConf) throws IOException;
 
-  long[] clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) throws IOException;
+  StatisticsDTO snapshot(Map<String, String> conf, List<String> paths, FsSnapshotterOperationConf opConf) throws IOException;
+
+  StatisticsDTO clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) throws IOException;
 
   void init(Properties properties) throws IOException;
 

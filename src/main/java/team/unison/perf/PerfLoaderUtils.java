@@ -10,6 +10,7 @@ package team.unison.perf;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import team.unison.perf.stats.StatisticsDTO;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -124,14 +125,21 @@ public final class PerfLoaderUtils {
     return ret;
   }
 
-  public static void printStatistics(String header, String operation, String endpoint, int concurrency, long averageObjectSize,
-                                     long[] results, Duration duration) {
-    long durationInSeconds = duration.toMillis() / 1000;
-    long failedRequests = Arrays.stream(results).filter(l -> l <= 0).count();
-    for (int i = 0; i < results.length; i++) {
-      results[i] = Math.abs(results[i]);
+  public static synchronized void printStatistics(String header, String endpoint, int concurrency, long averageObjectSize,
+                                                  StatisticsDTO stats, Duration duration) {
+    for (String operation : stats.getOperations()) {
+      printStatistics(header, operation, endpoint, concurrency, averageObjectSize, stats.getResults(operation), duration);
     }
-    Arrays.sort(results);
+  }
+
+  public static synchronized void printStatistics(String header, String operation, String endpoint, int concurrency, long averageObjectSize,
+                                                  List<Long> results, Duration duration) {
+    long durationInSeconds = duration.toMillis() / 1000;
+    long failedRequests = results.stream().filter(l -> l <= 0).count();
+    for (int i = 0; i < results.size(); i++) {
+      results.set(i, Math.abs(results.get(i)));
+    }
+    results.sort(Long::compare);
     System.out.printf("%s%n", header);
     System.out.printf("            --- Total Results ---%n");
     System.out.printf("Operation: %s%n", operation);
@@ -139,19 +147,20 @@ public final class PerfLoaderUtils {
       System.out.printf("Endpoint: %s%n", endpoint);
     }
     System.out.printf("Concurrency: %d%n", concurrency);
-    System.out.printf("Total number of requests: %d%n", results.length);
+    System.out.printf("Total number of requests: %d%n", results.size());
     System.out.printf("Failed requests: %d%n", failedRequests);
-    System.out.printf("Total elapsed time: %fs%n", ((double) Arrays.stream(results).sum()) / 1_000_000_000);
+    System.out.printf("Total elapsed time: %fs%n", ((double) results.stream().mapToLong(l -> l).sum()) / 1_000_000_000);
     System.out.printf("Duration: %ds%n", durationInSeconds);
     if (durationInSeconds != 0) {
-      System.out.printf("Requests/sec: %d%n", results.length / durationInSeconds);
+      System.out.printf("Requests/sec: %d%n", results.size() / durationInSeconds);
     }
-    System.out.printf("Average request time: %fms%n", (Arrays.stream(results).average().orElse(0)) / 1_000_000);
-    System.out.printf("Minimum request time: %.2fms%n", ((double) Arrays.stream(results).filter(l -> l > 0).min().orElse(0)) / 1_000_000);
-    System.out.printf("Maximum request time: %.2fms%n", ((double) Arrays.stream(results).max().orElse(0)) / 1_000_000);
+    System.out.printf("Average request time: %fms%n", (results.stream().mapToLong(l -> l).average().orElse(0)) / 1_000_000);
+    System.out.printf("Minimum request time: %.2fms%n", ((double) results.stream().mapToLong(l -> l).filter(l -> l > 0).min().orElse(0))
+            / 1_000_000);
+    System.out.printf("Maximum request time: %.2fms%n", ((double) results.stream().mapToLong(l -> l).max().orElse(0)) / 1_000_000);
 
     if (averageObjectSize != 0) {
-      long totalObjectSize = averageObjectSize * results.length;
+      long totalObjectSize = averageObjectSize * results.size();
       System.out.printf("Average Object Size: %d%n", averageObjectSize);
       System.out.printf("Total Object Size: %d%n", totalObjectSize);
       System.out.printf(" - binary units: %s%n", byteCountToDisplaySize(totalObjectSize));
@@ -175,9 +184,24 @@ public final class PerfLoaderUtils {
     }
   }
 
-  private static double getPercentile(long[] arr, double percentile) {
-    int index = (int) Math.ceil(percentile * (double) arr.length);
-    return arr[index - 1];
+  private static double getPercentile(List<Long> arr, double percentile) {
+    int index = (int) Math.ceil(percentile * (double) arr.size());
+    return arr.get(index - 1);
+  }
+
+  public static List<String> initSubdirs(List<String> paths, int subdirsWidth, int subdirsDepth, String subdirsFormat) {
+    if (subdirsDepth <= 0) {
+      return paths;
+    }
+
+    List<String> subdirs = new ArrayList<>();
+    for (String path : paths) {
+      for (int i = 0; i < subdirsWidth; i++) {
+        subdirs.add(path + "/" + String.format(subdirsFormat, i));
+      }
+    }
+
+    return initSubdirs(subdirs, subdirsWidth, subdirsDepth - 1, subdirsFormat);
   }
 
   public static long toSize(String s) {

@@ -11,10 +11,13 @@ import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Histogram;
 import io.prometheus.client.exporter.PushGateway;
+import io.prometheus.jmx.JmxCollector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.loader.FsLoaderBatchRemote;
+import team.unison.perf.stats.StatisticsDTO;
 
+import javax.management.MalformedObjectNameException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.*;
@@ -48,37 +51,44 @@ public final class PrometheusUtils {
 
   private static final CollectorRegistry COLLECTOR_REGISTRY = new CollectorRegistry();
 
-  public static void record(String command, long objectSize, boolean success, long elapsedMs) {
+  public static void record(StatisticsDTO stats, String operation, long objectSize, boolean success, long elapsedNanos) {
+    stats.add(operation, success, elapsedNanos);
     if (!INITIALIZED.get()) {
       return;
     }
 
     try {
-      getOperationsCounter(command, success).labels(HOST_NAME, PROCESS_NAME, Long.toString(objectSize)).inc();
-      getOperationsHistogram(command, success).labels(HOST_NAME, PROCESS_NAME).observe(elapsedMs);
+      String[] counterLabels = objectSize < 0
+              ? new String[]{HOST_NAME,
+              PROCESS_NAME}
+              : new String[]{HOST_NAME,
+              PROCESS_NAME,
+              Long.toString(objectSize)};
+      getOperationsCounter(operation, success).labels(counterLabels).inc();
+      getOperationsHistogram(operation, success).labels(HOST_NAME, PROCESS_NAME).observe((double) elapsedNanos / 1_000_000);
     } catch (Exception e) {
       log.warn("Exception in recording", e);
     }
   }
 
-  private static Histogram getOperationsHistogram(String command, boolean success) {
-    String operationName = String.format("fsloader_%s_%s_operations_latency_ms", success ? "successful" : "failed", command);
+  private static Histogram getOperationsHistogram(String operation, boolean success) {
+    String operationName = String.format("fsloader_%s_%s_operations_latency_ms", success ? "successful" : "failed", operation);
 
     return HISTOGRAM_MAP.computeIfAbsent(operationName, n -> Histogram.build()
             .name(operationName)
-            .help("Latency of " + command + " requests.")
+            .help("Latency of " + operation + " requests.")
             .labelNames("hostname", "processname")
             .buckets(HISTOGRAM_BUCKETS.stream().mapToDouble(l -> (double) l).toArray())
             .register(COLLECTOR_REGISTRY));
   }
 
-  private static Counter getOperationsCounter(String command, boolean success) {
-    String operationName = String.format("fsloader_%s_%s_operations", success ? "successful" : "failed", command);
+  private static Counter getOperationsCounter(String operation, boolean success) {
+    String operationName = String.format("fsloader_%s_%s_operations", success ? "successful" : "failed", operation);
 
     return COUNTERS.computeIfAbsent(operationName, n -> Counter.build()
             .name(n)
             .labelNames("hostname", "processname", "objectsize")
-            .help("Total " + command + " requests.").register(COLLECTOR_REGISTRY));
+            .help("Total " + operation + " requests.").register(COLLECTOR_REGISTRY));
   }
 
   public static synchronized void init(Properties properties) {
@@ -109,6 +119,13 @@ public final class PrometheusUtils {
           throw new UncheckedIOException(e);
         }
       }, PUSH_PERIOD_SECONDS, PUSH_PERIOD_SECONDS, TimeUnit.SECONDS);
+
+      try {
+        new JmxCollector("").register(COLLECTOR_REGISTRY);
+        log.info("JMX collector registered");
+      } catch (MalformedObjectNameException e) {
+        log.error("Error registering JMX collector", e);
+      }
     }
   }
 

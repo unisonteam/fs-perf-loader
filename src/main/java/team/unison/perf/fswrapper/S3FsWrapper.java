@@ -137,6 +137,21 @@ public class S3FsWrapper implements FsWrapper {
     return listObjectsResponse.contents().stream().map(S3Object::key).collect(Collectors.toList());
   }
 
+  @Override
+  public boolean allowSnapshot(String path) {
+    throw new UnsupportedOperationException("Makeing snapshottable not supported on S3");
+  }
+
+  @Override
+  public boolean createSnapshot(String path, String snapshotName) {
+    throw new UnsupportedOperationException("Creating snapshot not supported on S3");
+  }
+
+  @Override
+  public boolean deleteSnapshot(String path, String snapshotName) {
+    throw new UnsupportedOperationException("Deleting snapshot not supported on S3");
+  }
+
   public static String[] toBucketAndKey(String bucket, String path) {
     String pathNoLeadingSlash = (path.charAt(0) == '/') ? path.substring(1) : path;
     if (bucket != null) {

@@ -10,6 +10,7 @@ package team.unison.perf.fswrapper;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.ozone.om.protocolPB.OmTransportFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -139,5 +140,31 @@ class HdfsFsWrapper implements FsWrapper {
     } catch (IOException e) {
       throw WorkerException.wrap(e);
     }
+  }
+
+  @Override
+  public boolean allowSnapshot(String path) {
+    try {
+      ((DistributedFileSystem) fs).allowSnapshot(new Path(path));
+    } catch (IOException e) {
+      throw WorkerException.wrap(e);
+    }
+    return true;
+  }
+
+  @Override
+  public boolean createSnapshot(String path, String snapshotName) throws IOException {
+    fs.createSnapshot(new Path(path), snapshotName);
+    return true;
+  }
+
+  @Override
+  public boolean deleteSnapshot(String path, String snapshotName) {
+    try {
+      fs.deleteSnapshot(new Path(path), snapshotName);
+    } catch (IOException e) {
+      throw WorkerException.wrap(e);
+    }
+    return true;
   }
 }

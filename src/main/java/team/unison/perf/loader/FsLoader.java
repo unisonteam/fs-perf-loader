@@ -10,10 +10,13 @@ package team.unison.perf.loader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.PerfLoaderUtils;
+import team.unison.perf.stats.StatisticsDTO;
 import team.unison.remote.GenericWorker;
 import team.unison.remote.GenericWorkerBuilder;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
+
+import static team.unison.perf.PerfLoaderUtils.initSubdirs;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -59,7 +62,7 @@ public final class FsLoader implements Runnable {
 
   private final List<Long> filesSizes = new ArrayList<>();
   private final List<String> filesSuffixes = new ArrayList<>();
-  private final List<List<long[]>> loadResults = new ArrayList<>();
+  private final StatisticsDTO loadResults = new StatisticsDTO();
   private final List<Duration> loadDurations = new ArrayList<>();
   private final List<Map<String, String>> workload;
 
@@ -172,21 +175,6 @@ public final class FsLoader implements Runnable {
     return list;
   }
 
-  private List<String> initSubdirs(List<String> paths, int subdirsWidth, int subdirsDepth, String subdirsFormat) {
-    if (subdirsDepth <= 0) {
-      return paths;
-    }
-
-    List<String> subdirs = new ArrayList<>();
-    for (String path : paths) {
-      for (int i = 0; i < subdirsWidth; i++) {
-        subdirs.add(path + "/" + String.format(subdirsFormat, i));
-      }
-    }
-
-    return initSubdirs(subdirs, subdirsWidth, subdirsDepth - 1, subdirsFormat);
-  }
-
   private void validate() {
     if (genericWorkerBuilders == null || genericWorkerBuilders.isEmpty()) {
       throw new IllegalArgumentException("Empty genericWorkerBuilders");
@@ -228,41 +216,37 @@ public final class FsLoader implements Runnable {
       try {
         if (workload.get(0).containsKey("operationType")) { // mixed workload
           Instant before = Instant.now();
-          List<Callable<List<long[]>>> callables = filesInBatches.stream()
-                  .map(batch -> ((Callable<List<long[]>>) () -> runMixedWorkload(workersCopy, batch)))
+          List<Callable<StatisticsDTO>> callables = filesInBatches.stream()
+                  .map(batch -> ((Callable<StatisticsDTO>) () -> runMixedWorkload(workersCopy, batch)))
                   .collect(Collectors.toList());
-          List<Future<List<long[]>>> futures = executorService.invokeAll(callables);
-          List<List<long[]>> commandResults = futures.stream().map(f -> {
+          List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
+          List<StatisticsDTO> commandResults = futures.stream().map(f -> {
             try {
               return f.get();
             } catch (Exception e) {
               throw WorkerException.wrap(e);
             }
           }).collect(Collectors.toList());
-          for (List<long[]> commandResult : commandResults) {
-            for (int i = 0; i < commandResult.size(); i++) {
-              if (loadResults.size() <= i) {
-                loadResults.add(new ArrayList<>());
-                loadDurations.add(Duration.between(before, Instant.now()));
-              }
-              loadResults.get(i).add(commandResult.get(i));
-            }
+          for (StatisticsDTO commandResult : commandResults) {
+            loadResults.add(commandResult);
           }
         } else { // regular workload
           for (Map<String, String> command : workload) {
             Instant before = Instant.now();
-            List<Callable<long[]>> callables = filesInBatches.stream()
-                    .map(batch -> ((Callable<long[]>) () -> runCommand(workersCopy, command, batch)))
+            List<Callable<StatisticsDTO>> callables = filesInBatches.stream()
+                    .map(batch -> ((Callable<StatisticsDTO>) () -> runCommand(workersCopy, command, batch)))
                     .collect(Collectors.toList());
-            List<Future<long[]>> futures = executorService.invokeAll(callables);
-            List<long[]> commandResults = futures.stream().map(f -> {
+            List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
+            List<StatisticsDTO> commandResults = futures.stream().map(f -> {
               try {
                 return f.get();
               } catch (Exception e) {
                 throw WorkerException.wrap(e);
               }
             }).collect(Collectors.toList());
-            loadResults.add(commandResults);
+            for (StatisticsDTO commandResult : commandResults) {
+              loadResults.add(commandResult);
+            }
             loadDurations.add(Duration.between(before, Instant.now()));
             genericWorkers.parallelStream().forEach(gw -> {
               try {
@@ -286,9 +270,9 @@ public final class FsLoader implements Runnable {
     }
   }
 
-  private List<long[]> runMixedWorkload(List<GenericWorker> workersCopy, Map<String, Long> batch) {
+  private StatisticsDTO runMixedWorkload(List<GenericWorker> workersCopy, Map<String, Long> batch) {
     GenericWorker genericWorker;
-    List<long[]> loadResult;
+    StatisticsDTO loadResult;
     synchronized (workersCopy) {
       genericWorker = workersCopy.remove(workersCopy.size() - 1);
     }
@@ -310,9 +294,9 @@ public final class FsLoader implements Runnable {
     return loadResult;
   }
 
-  private long[] runCommand(List<GenericWorker> workersCopy, Map<String, String> command, Map<String, Long> batch) {
+  private StatisticsDTO runCommand(List<GenericWorker> workersCopy, Map<String, String> command, Map<String, Long> batch) {
     GenericWorker genericWorker;
-    long[] commandResult;
+    StatisticsDTO commandResult;
     synchronized (workersCopy) {
       genericWorker = workersCopy.remove(workersCopy.size() - 1);
     }
@@ -361,10 +345,10 @@ public final class FsLoader implements Runnable {
     String header = "Loader: " + name;
     for (int cmdNo = 0; cmdNo < workload.size(); cmdNo++) {
       Map<String, String> command = workload.get(cmdNo);
-      long[] globalResults = loadResults.get(cmdNo).stream().flatMapToLong(Arrays::stream).toArray();
+      String op = command.containsKey("operation") ? command.get("operation") : command.get("operationType");
+      List<Long> globalResults = loadResults.getResults(op);
       Duration duration = loadDurations.size() < cmdNo ? null : loadDurations.get(cmdNo);
       long averageObjectSize = 0;
-      String op = command.containsKey("operation") ? command.get("operation") : command.get("operationType");
       if ("put".equalsIgnoreCase(op) || "get".equalsIgnoreCase(op)) {
         averageObjectSize = (long) filesSizes.stream().mapToLong(l -> l).average().orElse(0);
       }

@@ -7,6 +7,7 @@
 
 package team.unison.perf.fswrapper;
 
+import java.io.IOException;
 import java.util.List;
 
 public interface FsWrapper {
@@ -21,4 +22,10 @@ public interface FsWrapper {
   boolean delete(String bucket, String path);
 
   List<String> list(String bucket, String path);
+
+  boolean allowSnapshot(String path);
+
+  boolean createSnapshot(String path, String snapshotName) throws IOException;
+
+  boolean deleteSnapshot(String path, String snapshotName);
 }

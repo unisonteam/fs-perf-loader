@@ -11,6 +11,7 @@ import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.perf.fswrapper.S3FsWrapper;
+import team.unison.perf.stats.StatisticsDTO;
 import team.unison.remote.WorkerException;
 
 import java.util.ArrayList;
@@ -24,12 +25,12 @@ import java.util.stream.Collectors;
 public class FsCleanerRemote {
   private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
 
-  public static long[] apply(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) {
+  public static StatisticsDTO apply(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) {
     List<FsWrapper> fsWrappers = FsWrapperFactory.get(paths.get(0), conf);
 
     ExecutorService executorService = Executors.newFixedThreadPool(threads);
 
-    List<Long> ret = new ArrayList<>();
+    StatisticsDTO stats = new StatisticsDTO();
 
     try {
       for (String path : paths) {
@@ -41,7 +42,7 @@ public class FsCleanerRemote {
             break;
           }
 
-          List<Callable<Object>> rmCalls = new ArrayList<>();
+          List<Callable<Void>> rmCalls = new ArrayList<>();
           for (String subPath : subPaths) {
             Optional<String> fileSuffix = suffixes.stream().filter(subPath::endsWith).findAny();
 
@@ -49,17 +50,16 @@ public class FsCleanerRemote {
               continue;
             }
 
-            rmCalls.add(() -> deleteAndRecord(randomFsWrapper(fsWrappers), bucket, subPath));
+            rmCalls.add(() -> deleteAndRecord(randomFsWrapper(fsWrappers), bucket, subPath, stats));
           }
-          List<Future<Object>> futures = executorService.invokeAll(rmCalls);
-          List<Long> batchResult = futures.stream().map(f -> {
+          List<Future<Void>> futures = executorService.invokeAll(rmCalls);
+          List<Void> batchResult = futures.stream().map(f -> {
             try {
-              return (Long) f.get();
+              return f.get();
             } catch (Exception e) {
               throw WorkerException.wrap(e);
             }
           }).collect(Collectors.toList());
-          ret.addAll(batchResult);
         }
       }
       executorService.shutdown();
@@ -74,18 +74,18 @@ public class FsCleanerRemote {
       if (!fileSuffix.isPresent()) {
         continue;
       }
-      ret.add(deleteAndRecord(randomFsWrapper(fsWrappers), null, path));
+      deleteAndRecord(randomFsWrapper(fsWrappers), null, path, stats);
     }
 
-    return ret.stream().mapToLong(o -> o).toArray();
+    return stats;
   }
 
-  private static long deleteAndRecord(FsWrapper fsWrapper, String bucket, String path) {
+  private static Void deleteAndRecord(FsWrapper fsWrapper, String bucket, String path, StatisticsDTO stats) {
     long start = System.nanoTime();
     boolean success = fsWrapper.delete(bucket, path);
     long elapsed = System.nanoTime() - start;
-    PrometheusUtils.record("delete", 0, success, elapsed / 1_000_000);
-    return elapsed * (success ? 1 : -1);
+    PrometheusUtils.record(stats, "delete", 0, success, elapsed);
+    return null;
   }
 
   private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {

@@ -10,6 +10,7 @@ package team.unison.perf.cleaner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.PerfLoaderUtils;
+import team.unison.perf.stats.StatisticsDTO;
 import team.unison.remote.GenericWorker;
 import team.unison.remote.GenericWorkerBuilder;
 import team.unison.remote.WorkerException;
@@ -31,7 +32,7 @@ public final class FsCleaner implements Runnable {
   private final List<String> paths;
   private final int threads;
   private final List<String> suffixes;
-  private long[] results;
+  private StatisticsDTO results;
 
   public FsCleaner(String name, Map<String, String> conf, GenericWorkerBuilder genericWorkerBuilder, List<String> paths, int threads,
                    Collection<String> suffixes) {
@@ -76,6 +77,6 @@ public final class FsCleaner implements Runnable {
   public void printSummary(Duration duration) {
     String header = "Cleaner: " + name;
 
-    PerfLoaderUtils.printStatistics(header, "delete", conf == null ? null : conf.get("s3.uri"), threads, 0, results, duration);
+    PerfLoaderUtils.printStatistics(header, conf == null ? null : conf.get("s3.uri"), threads, 0, results, duration);
   }
 }

@@ -16,6 +16,9 @@ import team.unison.perf.filetransfer.FileTransferRemote;
 import team.unison.perf.jstack.JstackSaverRemote;
 import team.unison.perf.loader.FsLoaderBatchRemote;
 import team.unison.perf.loader.FsLoaderOperationConf;
+import team.unison.perf.snapshot.FsSnapshotterBatchRemote;
+import team.unison.perf.snapshot.FsSnapshotterOperationConf;
+import team.unison.perf.stats.StatisticsDTO;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -74,17 +77,24 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public long[] runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command, FsLoaderOperationConf opConf) {
+  public StatisticsDTO runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command,
+                                  FsLoaderOperationConf opConf) {
     return FsLoaderBatchRemote.runCommand(conf, batch, command, opConf);
   }
 
   @Override
-  public List<long[]> runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload, FsLoaderOperationConf opConf) {
+  public StatisticsDTO runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload,
+                                        FsLoaderOperationConf opConf) {
     return FsLoaderBatchRemote.runMixedWorkload(conf, batch, workload, opConf);
   }
 
   @Override
-  public long[] clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) {
+  public StatisticsDTO snapshot(Map<String, String> conf, List<String> paths, FsSnapshotterOperationConf opConf) throws IOException {
+    return FsSnapshotterBatchRemote.snapshot(conf, paths, opConf);
+  }
+
+  @Override
+  public StatisticsDTO clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) {
     return FsCleanerRemote.apply(conf, paths, suffixes, threads);
   }
 

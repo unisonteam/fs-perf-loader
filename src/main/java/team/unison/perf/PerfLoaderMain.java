@@ -13,6 +13,7 @@ import team.unison.perf.cleaner.FsCleaner;
 import team.unison.perf.filetransfer.FileTransfer;
 import team.unison.perf.jstack.JstackSaver;
 import team.unison.perf.loader.FsLoader;
+import team.unison.perf.snapshot.FsSnapshotter;
 import team.unison.remote.SshConnectionBuilder;
 import team.unison.remote.SshConnectionFactory;
 
@@ -49,12 +50,15 @@ public final class PerfLoaderMain {
     SshConnectionBuilder sshConnectionBuilder = sshConnectionBuilder(properties);
 
     List<FsLoader> fsLoaders = FsLoaderPropertiesBuilder.build(properties, sshConnectionBuilder);
+    List<FsSnapshotter> fsSnapshotters = FsSnapshotterPropertiesBuilder.build(properties, sshConnectionBuilder);
     List<JstackSaver> jstackSavers = JstackSaverPropertiesBuilder.build(properties, sshConnectionBuilder);
     List<FileTransfer> fileTransfers = FileTransferPropertiesBuilder.build(properties, sshConnectionBuilder);
 
     jstackSavers.forEach(j -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(j, j.getPeriod().toMillis(), j.getPeriod().toMillis(),
             TimeUnit.MILLISECONDS));
     fileTransfers.forEach(f -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(f, f.getPeriod().toMillis(), f.getPeriod().toMillis(),
+            TimeUnit.MILLISECONDS));
+    fsSnapshotters.forEach(s -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(s, s.getPeriod().toMillis(), s.getPeriod().toMillis(),
             TimeUnit.MILLISECONDS));
 
     if (!fsLoaders.isEmpty()) {
@@ -82,6 +86,7 @@ public final class PerfLoaderMain {
       System.out.println("Collecting thread dumps. Press Ctrl+C to exit");
     } else {
       SCHEDULED_EXECUTOR_SERVICE.shutdown();
+      System.exit(0);
     }
   }
 
