@@ -19,7 +19,16 @@ if [ ! -d $DEPLOY_SCRIPT_DIR/lib ] ; then
   cd "$DEPLOY_SCRIPT_DIR"
 fi
 
-AGENT_CLASSPATH="$DEPLOY_SCRIPT_DIR/agent.jar:$DEPLOY_SCRIPT_DIR/lib/*"
+if [[ -z "$JARS_DIR" ]] ; then
+  AGENT_CLASSPATH="$(timeout 60 hadoop classpath)"
+else
+  AGENT_CLASSPATH="$JARS_DIR/*"
+fi
+#classes from agent go first
+AGENT_CLASSPATH="$DEPLOY_SCRIPT_DIR/agent.jar:$DEPLOY_SCRIPT_DIR/lib/*:$AGENT_CLASSPATH"
+
+HADOOP_CONF_DIR=${CONF_DIR:-'/etc/ozone/conf:/etc/hadoop/conf'}
+
 export LOG_FILE=$DEPLOY_SCRIPT_DIR/logs/$$.log
 
-nohup $JAVA_COMMAND -Djava.net.preferIPv4Stack=true -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=. -cp /etc/ozone/conf:/etc/hadoop/conf:$JAVA_HOME/lib/tools.jar:$AGENT_CLASSPATH team.unison.remote.RemoteMain "$@" > $LOG_FILE 2>&1 &
+nohup $JAVA_COMMAND -Djava.net.preferIPv4Stack=true -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=. -cp $HADOOP_CONF_DIR:$AGENT_CLASSPATH team.unison.remote.RemoteMain "$@" > $LOG_FILE 2>&1 &

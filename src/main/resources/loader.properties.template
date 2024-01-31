@@ -11,6 +11,10 @@
 #optional : kerberos keytab and principal
 #optional: LD_LIBRARY_PATH env variable for agent (default: /usr/sdp/current/hadoop-client/lib/native)
 #libraries=...
+#optional: path to directory with Hadoop config files
+#confdir=/tmp/hadoop_conf_from_another_cluster
+#optional: path to directory with extra Hadoop client jar files (Ozone, etc)
+#jarsdir=/tmp/extra_hadoop_jars_from_another_cluster
 #kerberos.principal=...
 #kerberos.keytab=...
 

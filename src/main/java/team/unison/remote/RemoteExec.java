@@ -42,6 +42,8 @@ final class RemoteExec {
     Map<String, String> env = new HashMap<>();
     env.put("_JAVA_OPTIONS", PerfLoaderUtils.getGlobalProperties().getProperty("jvmoptions", "-Xmx1G"));
     env.put("LD_LIBRARY_PATH", PerfLoaderUtils.getGlobalProperties().getProperty("libraries", "/usr/sdp/current/hadoop-client/lib/native"));
+    env.put("CONF_DIR", PerfLoaderUtils.getGlobalProperties().getProperty("confdir"));
+    env.put("JARS_DIR", PerfLoaderUtils.getGlobalProperties().getProperty("jarsdir"));
 
     if (checkAlreadyDeployed.getExitStatus() == 0) {
       SshRunResult sshRunResult = sshConnectionBuilder.run(fullAgentStartCommand, env);
