@@ -7,6 +7,19 @@
 
 package team.unison.perf.loader;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
@@ -14,23 +27,10 @@ import team.unison.perf.stats.StatisticsDTO;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
 
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-
 public class FsLoaderBatchRemote {
   private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
   private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
   private static final int MAX_FILE_POOL_SIZE = 1_000_000; // approximate
-
-  // these filenames are not valid - use them to pass extra control metadata
-  static final String THREAD_NUMBER_KEY = ":";
-  // C style: 0 is false, else is true
-  static final String USE_TMP_FILE_KEY = "::";
-  static final String LOAD_DELAY_IN_MILLIS_KEY = ":::";
-  static final String FILL_KEY = "::::";
 
   public static StatisticsDTO runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command,
                                          FsLoaderOperationConf opConf) {
@@ -39,28 +39,26 @@ public class FsLoaderBatchRemote {
       return stats;
     }
 
-    long fill = batch.remove(FILL_KEY);
-    byte[] barr = getData(fill);
-
+    byte[] barr = getData(opConf.getFillChar());
 
     ExecutorService executorService = Executors.newFixedThreadPool(opConf.getThreadCount());
     String randomPath = batch.keySet().stream().findFirst().get();
     List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
 
     List<Callable<Object>> callables = batch.entrySet().stream()
-            .map(entry -> Executors.callable(
-                    () -> {
-                      long start = System.nanoTime();
-                      boolean success = runCommand(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
-                              command);
-                      long elapsed = System.nanoTime() - start;
-                      PrometheusUtils.record(stats, command.get("operation"), entry.getValue(), success, elapsed);
-                      if (opConf.getLoadDelayInMillis() > 0) {
-                        Utils.sleep(opConf.getLoadDelayInMillis());
-                      }
-                    }
-            ))
-            .collect(Collectors.toList());
+        .map(entry -> Executors.callable(
+            () -> {
+              long start = System.nanoTime();
+              boolean success = runCommand(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
+                                           command);
+              long elapsed = System.nanoTime() - start;
+              PrometheusUtils.record(stats, command.get("operation"), entry.getValue(), success, elapsed);
+              if (opConf.getLoadDelayInMillis() > 0) {
+                Utils.sleep(opConf.getLoadDelayInMillis());
+              }
+            }
+        ))
+        .collect(Collectors.toList());
     try {
       executorService.invokeAll(callables);
     } catch (InterruptedException e) {
@@ -78,8 +76,7 @@ public class FsLoaderBatchRemote {
       return stats;
     }
 
-    long fill = batch.remove(FILL_KEY);
-    byte[] barr = getData(fill);
+    byte[] barr = getData(opConf.getFillChar());
 
     AtomicLong pos = new AtomicLong();
     ExecutorService executorService = Executors.newFixedThreadPool(opConf.getThreadCount());
@@ -88,9 +85,9 @@ public class FsLoaderBatchRemote {
     List<String> filePool = Collections.synchronizedList(new ArrayList<>());
 
     List<Callable<StatisticsDTO>> callables = batch.entrySet().stream()
-            .map(entry -> ((Callable<StatisticsDTO>) () ->
-                    runWorkloadForSingleFile(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf, workload, pos, filePool)
-            )).collect(Collectors.toList());
+        .map(entry -> ((Callable<StatisticsDTO>) () ->
+            runWorkloadForSingleFile(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf, workload, pos, filePool)
+        )).collect(Collectors.toList());
 
     try {
       List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
