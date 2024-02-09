@@ -34,6 +34,7 @@ public final class PrometheusUtils {
   private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
   private static final Map<String, Counter> COUNTERS = new ConcurrentHashMap<>();
   private static final Map<String, Histogram> HISTOGRAM_MAP = new ConcurrentHashMap<>();
+  private static JmxCollector JMX_COLLECTOR;
   private static final String HOST_NAME = System.getProperty("java.rmi.server.hostname"); // set in RemoteMain
   private static final String PROCESS_NAME = "perfloader";
   private static final String JOB_NAME = "perfloaderjob";
@@ -121,7 +122,8 @@ public final class PrometheusUtils {
       }, PUSH_PERIOD_SECONDS, PUSH_PERIOD_SECONDS, TimeUnit.SECONDS);
 
       try {
-        new JmxCollector("").register(COLLECTOR_REGISTRY);
+        JMX_COLLECTOR = new JmxCollector("");
+        JMX_COLLECTOR.register(COLLECTOR_REGISTRY);
         log.info("JMX collector registered");
       } catch (MalformedObjectNameException e) {
         log.error("Error registering JMX collector", e);
@@ -140,6 +142,7 @@ public final class PrometheusUtils {
       PUSH_GATEWAY.push(COLLECTOR_REGISTRY, JOB_NAME, INSTANCE_GROUPING_KEY);
       COUNTERS.values().forEach(COLLECTOR_REGISTRY::unregister);
       HISTOGRAM_MAP.values().forEach(COLLECTOR_REGISTRY::unregister);
+      COLLECTOR_REGISTRY.unregister(JMX_COLLECTOR);
       COUNTERS.clear();
       HISTOGRAM_MAP.clear();
       PUSH_GATEWAY.delete(JOB_NAME, INSTANCE_GROUPING_KEY);
