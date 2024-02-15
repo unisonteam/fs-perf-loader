@@ -36,8 +36,8 @@ public final class PrometheusUtils {
   private static final Map<String, Histogram> HISTOGRAM_MAP = new ConcurrentHashMap<>();
   private static JmxCollector JMX_COLLECTOR;
   private static final String HOST_NAME = System.getProperty("java.rmi.server.hostname"); // set in RemoteMain
-  private static final String PROCESS_NAME = "perfloader";
-  private static final String JOB_NAME = "perfloaderjob";
+  private static volatile String PROCESS_NAME = "perfloader";
+  private static volatile String JOB_NAME = "perfloaderjob";
   private static final List<Long> HISTOGRAM_BUCKETS = new ArrayList<>(Arrays.asList(10L, 20L, 30L, 40L, 50L,
           100L, 200L, 300L, 400L, 500L,
           1_000L, 2_000L, 5_000L, 10_000L));
@@ -94,6 +94,8 @@ public final class PrometheusUtils {
 
   public static synchronized void init(Properties properties) {
     String prometheusAddress = properties.getProperty("prometheus.address");
+    JOB_NAME = properties.getProperty("prometheus.job", JOB_NAME);
+    PROCESS_NAME = properties.getProperty("prometheus.process", PROCESS_NAME);
 
     if (prometheusAddress != null && !INITIALIZED.get()) {
       log.info("Initialize Prometheus - address is " + prometheusAddress);

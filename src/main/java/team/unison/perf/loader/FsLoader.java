@@ -191,18 +191,22 @@ public final class FsLoader implements Runnable {
 
   @Override
   public void run() {
-    List<GenericWorker> genericWorkers = genericWorkerBuilders.parallelStream()
-            .map(GenericWorkerBuilder::get)
-            .collect(Collectors.toList());
+    try {
+      List<GenericWorker> genericWorkers = genericWorkerBuilders.parallelStream()
+              .map(GenericWorkerBuilder::get)
+              .collect(Collectors.toList());
 
-    for (int i = 0; i < count; i++) {
-      if (i != 0) {
-        log.info("Waiting " + period + " between loads");
-        Utils.sleep(period.toMillis());
+      for (int i = 0; i < count; i++) {
+        if (i != 0) {
+          log.info("Waiting " + period + " between loads");
+          Utils.sleep(period.toMillis());
+        }
+        log.info("Start load {}{}", name, (count == 1) ? "" : ": " + (i + 1));
+        runSingle(genericWorkers);
+        printSummary();
       }
-      log.info("Start load {}{}", name, (count == 1) ? "" : ": " + (i + 1));
-      runSingle(genericWorkers);
-      printSummary();
+    } catch (Exception e) {
+      log.warn("Exception in run", e);
     }
     log.info("Load {} ended", name);
   }
@@ -277,7 +281,6 @@ public final class FsLoader implements Runnable {
       genericWorker = workersCopy.remove(workersCopy.size() - 1);
     }
     try {
-
       log.info("Start mixed workload at host {}", genericWorker.getHost());
       Instant before = Instant.now();
       char fillChar = (char) ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
@@ -347,7 +350,7 @@ public final class FsLoader implements Runnable {
       Map<String, String> command = workload.get(cmdNo);
       String op = command.containsKey("operation") ? command.get("operation") : command.get("operationType");
       List<Long> globalResults = loadResults.getResults(op);
-      Duration duration = loadDurations.size() < cmdNo ? null : loadDurations.get(cmdNo);
+      Duration duration = loadDurations.size() < cmdNo + 1 ? Duration.ZERO : loadDurations.get(cmdNo);
       long averageObjectSize = 0;
       if ("put".equalsIgnoreCase(op) || "get".equalsIgnoreCase(op)) {
         averageObjectSize = (long) filesSizes.stream().mapToLong(l -> l).average().orElse(0);

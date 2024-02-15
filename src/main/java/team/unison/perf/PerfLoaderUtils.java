@@ -136,9 +136,7 @@ public final class PerfLoaderUtils {
                                                   List<Long> results, Duration duration) {
     long durationInSeconds = duration.toMillis() / 1000;
     long failedRequests = results.stream().filter(l -> l <= 0).count();
-    for (int i = 0; i < results.size(); i++) {
-      results.set(i, Math.abs(results.get(i)));
-    }
+    results.replaceAll(Math::abs);
     results.sort(Long::compare);
     System.out.printf("%s%n", header);
     System.out.printf("            --- Total Results ---%n");
@@ -150,8 +148,8 @@ public final class PerfLoaderUtils {
     System.out.printf("Total number of requests: %d%n", results.size());
     System.out.printf("Failed requests: %d%n", failedRequests);
     System.out.printf("Total elapsed time: %fs%n", ((double) results.stream().mapToLong(l -> l).sum()) / 1_000_000_000);
-    System.out.printf("Duration: %ds%n", durationInSeconds);
     if (durationInSeconds != 0) {
+      System.out.printf("Duration: %ds%n", durationInSeconds);
       System.out.printf("Requests/sec: %d%n", results.size() / durationInSeconds);
     }
     System.out.printf("Average request time: %fms%n", (results.stream().mapToLong(l -> l).average().orElse(0)) / 1_000_000);
