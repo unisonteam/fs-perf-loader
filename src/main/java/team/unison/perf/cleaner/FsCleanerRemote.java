@@ -42,7 +42,7 @@ public class FsCleanerRemote {
             break;
           }
 
-          List<Callable<Void>> rmCalls = new ArrayList<>();
+          List<Callable<Boolean>> rmCalls = new ArrayList<>();
           for (String subPath : subPaths) {
             Optional<String> fileSuffix = suffixes.stream().filter(subPath::endsWith).findAny();
 
@@ -50,10 +50,10 @@ public class FsCleanerRemote {
               continue;
             }
 
-            rmCalls.add(() -> deleteAndRecord(randomFsWrapper(fsWrappers), bucket, subPath, stats));
+            rmCalls.add(() -> PrometheusUtils.runAndRecord(stats, "delete", () -> randomFsWrapper(fsWrappers).delete(bucket, subPath)));
           }
-          List<Future<Void>> futures = executorService.invokeAll(rmCalls);
-          List<Void> batchResult = futures.stream().map(f -> {
+          List<Future<Boolean>> futures = executorService.invokeAll(rmCalls);
+          List<Boolean> batchResult = futures.stream().map(f -> {
             try {
               return f.get();
             } catch (Exception e) {
@@ -74,18 +74,10 @@ public class FsCleanerRemote {
       if (!fileSuffix.isPresent()) {
         continue;
       }
-      deleteAndRecord(randomFsWrapper(fsWrappers), null, path, stats);
+      PrometheusUtils.runAndRecord(stats, "delete", () -> randomFsWrapper(fsWrappers).delete(null, path));
     }
 
     return stats;
-  }
-
-  private static Void deleteAndRecord(FsWrapper fsWrapper, String bucket, String path, StatisticsDTO stats) {
-    long start = System.nanoTime();
-    boolean success = fsWrapper.delete(bucket, path);
-    long elapsed = System.nanoTime() - start;
-    PrometheusUtils.record(stats, "delete", 0, success, elapsed);
-    return null;
   }
 
   private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {

@@ -11,18 +11,18 @@ import java.io.Serializable;
 
 public class FsSnapshotterOperationConf implements Serializable {
   private final int threadCount;
-  private final String snapshotName;
+  private final String actions;
 
-  public FsSnapshotterOperationConf(int threadCount, String snapshotName) {
+  public FsSnapshotterOperationConf(int threadCount, String actions) {
     this.threadCount = threadCount;
-    this.snapshotName = snapshotName;
+    this.actions = actions;
   }
 
   public int getThreadCount() {
     return threadCount;
   }
 
-  public String getSnapshotName() {
-    return snapshotName;
+  public String getActions() {
+    return actions;
   }
 }

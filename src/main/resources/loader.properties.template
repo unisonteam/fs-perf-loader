@@ -40,7 +40,7 @@ ssh.key=/home/user/.ssh/private_key
 #conf.MYS3.s3.secret=secretAccessKey
 #conf.MYS3.s3.uri=http://url...
 #it is possible to set S3 endpoint URI in the form of list or template
-#conf.S3.s3.uri=http://host{1..5}.domain:port
+#conf.MYS3.s3.uri=http://host{1..5}.domain:port
 
 fsloader.LOAD.hosts=fat01-vm1.unison.team,fat01-vm2.unison.team
 fsloader.LOAD.paths=/tmp/path1,/tmp/path2
@@ -113,12 +113,19 @@ fsloader.LOAD.batch.file.suffixes=90:good,10:bad
 #snapshot.SNAP.subdirs.depth=2
 #snapshot.SNAP.subdirs.width=3
 #snapshot.SNAP.subdirs.format=dir%03d
+#it is possible to reuse settings from any other configuration (snapshot, fsloader, etc)
+#and override only values that differ, for example:
+#snapshot.SNAP.defaults=fsloader.LOAD
+#operations of snapshot. contains a comma-separated list of operations performed for single path.
+#if the name of snapshot contains string '{DATETIME}', it is replaced with yyyyMMddHHmm string
+#supported operations are:
+#- rotate. format: 'rotate:<snapshot name>:<number of snapshots>'. example: 'rotate:mysnapshot:3'
+#- rename. format: 'rename:<source>:<target>'. example: 'rename:mysnapshot:backup_{DATETIME}'
+#snapshot.SNAP.actions=rotate:snap1:3,rotate:snap1:2
 #number of paths in one snapshot batch
 #snapshot.SNAP.batch.path.count=10
 #optional: in seconds - delay between snapshot batches (default: 60)
 #snapshot.SNAP.period=60
-#optional: name of snapshot (default: 'snapshot')
-#snapshot.SNAP.name=snapshot
 
 #FS cleaner. Runs on one host only
 #fscleaner.CLEAN.paths=/tmp/path{19..21}

@@ -26,7 +26,7 @@ public class FsSnapshotterBuilder {
   private int pathsInBatch = 100;
   private String subdirsFormat = "%d";
   private Duration period = Duration.ofSeconds(60);
-  private String snapshotName = "snapshot";
+  private String actions;
 
   public FsSnapshotterBuilder name(String name) {
     this.name = name;
@@ -79,20 +79,21 @@ public class FsSnapshotterBuilder {
     return this;
   }
 
-  public FsSnapshotterBuilder snapshotName(String snapshotName) {
-    this.snapshotName = snapshotName;
+  public FsSnapshotterBuilder actions(String actions) {
+    this.actions = actions;
     return this;
   }
 
   public FsSnapshotter createFsSnapshotter() {
     return new FsSnapshotter(name, conf, genericWorkerBuilders, threads, paths, subdirsWidth, subdirsDepth, subdirsFormat,
-            period, pathsInBatch, snapshotName);
+            period, pathsInBatch, actions);
   }
 
   @Override
   public String toString() {
     return "FsLoaderBuilder{"
             + "name=" + name
+            + ", actions=" + actions
             + ", threads=" + threads + ", paths=" + paths + ", subdirsWidth=" + subdirsWidth
             + ", subdirsDepth=" + subdirsDepth + ", subdirsFormat=" + subdirsFormat
             + ", period=" + period

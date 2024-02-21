@@ -19,6 +19,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static team.unison.perf.PerfLoaderUtils.getProperty;
+
 public class JstackSaverPropertiesBuilder {
   public static List<JstackSaver> build(Properties props, SshConnectionBuilder sshConnectionBuilder) {
     List<JstackSaver> jstackSavers = new ArrayList<>();
@@ -28,19 +30,19 @@ public class JstackSaverPropertiesBuilder {
     for (String jstackSaverName : jstackSaverNames) {
       String prefix = "jstack." + jstackSaverName + ".";
 
-      SshConnectionBuilder sshConnectionBuilderWithUserAndGroup = sshConnectionBuilder.systemUser(props.getProperty(prefix + "user"))
-              .systemGroup(props.getProperty(prefix + "group"));
+      SshConnectionBuilder sshConnectionBuilderWithUserAndGroup = sshConnectionBuilder.systemUser(getProperty(props, prefix, "user"))
+              .systemGroup(getProperty(props, prefix, "group"));
 
-      List<String> hosts = PerfLoaderUtils.parseTemplate(props.getProperty(prefix + "hosts").replace(" ", ""));
+      List<String> hosts = PerfLoaderUtils.parseTemplate(getProperty(props, prefix, "hosts").replace(" ", ""));
       String filesDir = props.getProperty("files.dir", System.getProperty("java.io.tmpdir")) + "/";
       for (String host : hosts) {
         JstackSaver jstackSaver = new JstackSaverBuilder()
-                .className(props.getProperty(prefix + "class"))
-                .filePrefix(filesDir + props.getProperty(prefix + "file.prefix"))
-                .fileAppend(Boolean.parseBoolean(props.getProperty(prefix + "file.append", "false")))
-                .fileGzip(Boolean.parseBoolean(props.getProperty(prefix + "file.gzip", "false")))
-                .fileSingle(Boolean.parseBoolean(props.getProperty(prefix + "file.single", "true")))
-                .period(Duration.ofSeconds(Long.parseLong(props.getProperty(prefix + "period", "30"))))
+                .className(getProperty(props, prefix, "class"))
+                .filePrefix(filesDir + getProperty(props, prefix, "file.prefix"))
+                .fileAppend(Boolean.parseBoolean(getProperty(props, prefix, "file.append", "false")))
+                .fileGzip(Boolean.parseBoolean(getProperty(props, prefix, "file.gzip", "false")))
+                .fileSingle(Boolean.parseBoolean(getProperty(props, prefix, "file.single", "true")))
+                .period(Duration.ofSeconds(Long.parseLong(getProperty(props, prefix, "period", "30"))))
                 .genericWorkerBuilder(ClientFactory.buildGeneric().sshConnectionBuilder(sshConnectionBuilderWithUserAndGroup.host(host)))
                 .createJstackSaver();
         jstackSavers.add(jstackSaver);

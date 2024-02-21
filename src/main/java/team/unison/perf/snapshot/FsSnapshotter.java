@@ -42,14 +42,14 @@ public final class FsSnapshotter implements Runnable {
   private final List<String> paths;
   private final List<String> snapshotDirs;
   private final int pathsInBatch;
-  private final String snapshotName;
+  private final String actions;
   private final AtomicLong totalNanos = new AtomicLong();
 
   private static final StatisticsDTO SNAPSHOT_RESULTS = new StatisticsDTO();
 
   FsSnapshotter(String name, Map<String, String> conf, Collection<GenericWorkerBuilder> genericWorkerBuilders,
                 int threads, List<String> paths, int subdirsWidth, int subdirsDepth, String subdirsFormat,
-                Duration period, int pathsInBatch, String snapshotName) {
+                Duration period, int pathsInBatch, String actions) {
     this.name = name;
     this.conf = conf;
     this.genericWorkerBuilders = new ArrayList<>(genericWorkerBuilders);
@@ -58,7 +58,7 @@ public final class FsSnapshotter implements Runnable {
     snapshotDirs = initSubdirs(paths, subdirsWidth, subdirsDepth, subdirsFormat);
     this.period = period;
     this.pathsInBatch = pathsInBatch;
-    this.snapshotName = snapshotName;
+    this.actions = actions;
 
     validate();
   }
@@ -136,7 +136,7 @@ public final class FsSnapshotter implements Runnable {
       log.info("Start snapshot at host {}", genericWorker.getHost());
       Instant before = Instant.now();
       try {
-        stats = genericWorker.getAgent().snapshot(conf, paths, new FsSnapshotterOperationConf(threads, snapshotName));
+        stats = genericWorker.getAgent().snapshot(conf, paths, new FsSnapshotterOperationConf(threads, actions));
       } catch (Exception e) {
         log.warn("Error running load", e);
         throw WorkerException.wrap(e);
@@ -158,7 +158,7 @@ public final class FsSnapshotter implements Runnable {
             + ", snapshot dirs count=" + snapshotDirs.size()
             + ", snapshot dirs=" + snapshotDirs.subList(0, Math.min(snapshotDirs.size(), 20))
             + ", period=" + period
-            + ", name=" + snapshotName
+            + ", actions=" + actions
             + ", pathsInBatch=" + pathsInBatch
             + '}';
   }

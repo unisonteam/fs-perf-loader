@@ -7,25 +7,18 @@
 
 package team.unison.perf.loader;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.perf.stats.StatisticsDTO;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
+
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 public class FsLoaderBatchRemote {
   private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
@@ -46,19 +39,19 @@ public class FsLoaderBatchRemote {
     List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
 
     List<Callable<Object>> callables = batch.entrySet().stream()
-        .map(entry -> Executors.callable(
-            () -> {
-              long start = System.nanoTime();
-              boolean success = runCommand(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
-                                           command);
-              long elapsed = System.nanoTime() - start;
-              PrometheusUtils.record(stats, command.get("operation"), entry.getValue(), success, elapsed);
-              if (opConf.getLoadDelayInMillis() > 0) {
-                Utils.sleep(opConf.getLoadDelayInMillis());
-              }
-            }
-        ))
-        .collect(Collectors.toList());
+            .map(entry -> Executors.callable(
+                    () -> {
+                      long start = System.nanoTime();
+                      boolean success = runCommand(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
+                              command);
+                      long elapsed = System.nanoTime() - start;
+                      PrometheusUtils.record(stats, command.get("operation"), elapsed, success, entry.getValue());
+                      if (opConf.getLoadDelayInMillis() > 0) {
+                        Utils.sleep(opConf.getLoadDelayInMillis());
+                      }
+                    }
+            ))
+            .collect(Collectors.toList());
     try {
       executorService.invokeAll(callables);
     } catch (InterruptedException e) {
@@ -85,9 +78,9 @@ public class FsLoaderBatchRemote {
     List<String> filePool = Collections.synchronizedList(new ArrayList<>());
 
     List<Callable<StatisticsDTO>> callables = batch.entrySet().stream()
-        .map(entry -> ((Callable<StatisticsDTO>) () ->
-            runWorkloadForSingleFile(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf, workload, pos, filePool)
-        )).collect(Collectors.toList());
+            .map(entry -> ((Callable<StatisticsDTO>) () ->
+                    runWorkloadForSingleFile(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf, workload, pos, filePool)
+            )).collect(Collectors.toList());
 
     try {
       List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
@@ -141,7 +134,7 @@ public class FsLoaderBatchRemote {
         long start = System.nanoTime();
         boolean success = runCommand(fsWrapper, fileName, fileSize, barr, opConf.isUsetmpFile(), command);
         long elapsed = System.nanoTime() - start;
-        PrometheusUtils.record(stats, command.get("operationType"), fileSize, success, elapsed);
+        PrometheusUtils.record(stats, command.get("operationType"), elapsed, success, fileSize);
         if (!success) {
           filePool.remove(fileName);
         }

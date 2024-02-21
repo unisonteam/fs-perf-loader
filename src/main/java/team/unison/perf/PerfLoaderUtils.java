@@ -222,4 +222,19 @@ public final class PerfLoaderUtils {
 
     return unit * Long.parseLong(unit == 1 ? s : s.substring(0, s.length() - 1));
   }
+
+  static String getProperty(Properties props, String prefix, String key) {
+    return getProperty(props, prefix, key, null);
+  }
+
+  static String getProperty(Properties props, String prefix, String key, String defaultValue) {
+    if (props.containsKey(prefix + key)) {
+      return props.getProperty(prefix + key);
+    }
+    String value = null;
+    if (props.containsKey(prefix + "defaults")) {
+      value = getProperty(props, props.getProperty(prefix + "defaults") + ".", key, defaultValue);
+    }
+    return value != null ? value : defaultValue;
+  }
 }

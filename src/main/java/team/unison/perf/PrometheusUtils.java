@@ -26,6 +26,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class PrometheusUtils {
@@ -52,7 +53,19 @@ public final class PrometheusUtils {
 
   private static final CollectorRegistry COLLECTOR_REGISTRY = new CollectorRegistry();
 
-  public static void record(StatisticsDTO stats, String operation, long objectSize, boolean success, long elapsedNanos) {
+  public static boolean runAndRecord(StatisticsDTO stats, String operationName, Supplier<Boolean> operation) {
+    long start = System.nanoTime();
+    boolean success = operation.get();
+    long elapsed = System.nanoTime() - start;
+    record(stats, operationName, elapsed, success);
+    return success;
+  }
+
+  public static void record(StatisticsDTO stats, String operation, long elapsedNanos, boolean success) {
+    record(stats, operation, elapsedNanos, success, -1);
+  }
+
+  public static void record(StatisticsDTO stats, String operation, long elapsedNanos, boolean success, long objectSize) {
     stats.add(operation, success, elapsedNanos);
     if (!INITIALIZED.get()) {
       return;

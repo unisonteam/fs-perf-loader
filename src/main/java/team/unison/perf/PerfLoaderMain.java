@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 public final class PerfLoaderMain {
   private static final Logger log = LoggerFactory.getLogger(PerfLoaderMain.class);
   private static final String DEFAULT_PROPERTIES_FILE_PATH = "loader.properties";
-  private static final ScheduledExecutorService SCHEDULED_EXECUTOR_SERVICE = Executors.newScheduledThreadPool(1);
 
   private PerfLoaderMain() {
   }
@@ -54,11 +53,13 @@ public final class PerfLoaderMain {
     List<JstackSaver> jstackSavers = JstackSaverPropertiesBuilder.build(properties, sshConnectionBuilder);
     List<FileTransfer> fileTransfers = FileTransferPropertiesBuilder.build(properties, sshConnectionBuilder);
 
-    jstackSavers.forEach(j -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(j, j.getPeriod().toMillis(), j.getPeriod().toMillis(),
+    ScheduledExecutorService ses = Executors.newScheduledThreadPool(jstackSavers.size() + fsLoaders.size() + fileTransfers.size() + fsSnapshotters.size());
+
+    jstackSavers.forEach(j -> ses.scheduleAtFixedRate(j, j.getPeriod().toMillis(), j.getPeriod().toMillis(),
             TimeUnit.MILLISECONDS));
-    fileTransfers.forEach(f -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(f, f.getPeriod().toMillis(), f.getPeriod().toMillis(),
+    fileTransfers.forEach(f -> ses.scheduleAtFixedRate(f, f.getPeriod().toMillis(), f.getPeriod().toMillis(),
             TimeUnit.MILLISECONDS));
-    fsSnapshotters.forEach(s -> SCHEDULED_EXECUTOR_SERVICE.scheduleAtFixedRate(s, s.getPeriod().toMillis(), s.getPeriod().toMillis(),
+    fsSnapshotters.forEach(s -> ses.scheduleAtFixedRate(s, s.getPeriod().toMillis(), s.getPeriod().toMillis(),
             TimeUnit.MILLISECONDS));
 
     if (!fsLoaders.isEmpty()) {
@@ -82,10 +83,14 @@ public final class PerfLoaderMain {
     List<FsCleaner> fsCleaners = FsCleanerPropertiesBuilder.build(properties, sshConnectionBuilder);
     fsCleaners.forEach(FsCleaner::run);
 
-    if (fsLoaders.isEmpty() && !jstackSavers.isEmpty()) {
-      System.out.println("Collecting thread dumps. Press Ctrl+C to exit");
+    if (fsLoaders.isEmpty()) {
+      if (!jstackSavers.isEmpty()) {
+        System.out.println("Collecting thread dumps. Press Ctrl+C to exit");
+      } else if (!fsSnapshotters.isEmpty()) {
+        System.out.println("Running periodic snapshots. Press Ctrl+C to exit");
+      }
     } else {
-      SCHEDULED_EXECUTOR_SERVICE.shutdown();
+      ses.shutdown();
       System.exit(0);
     }
   }

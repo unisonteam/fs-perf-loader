@@ -139,17 +139,22 @@ public class S3FsWrapper implements FsWrapper {
 
   @Override
   public boolean allowSnapshot(String path) {
-    throw new UnsupportedOperationException("Makeing snapshottable not supported on S3");
+    throw new UnsupportedOperationException("Making snapshottable is not supported on S3");
   }
 
   @Override
   public boolean createSnapshot(String path, String snapshotName) {
-    throw new UnsupportedOperationException("Creating snapshot not supported on S3");
+    throw new UnsupportedOperationException("Creating snapshot is not supported on S3");
+  }
+
+  @Override
+  public boolean renameSnapshot(String path, String snapshotOldName, String snapshotNewName) {
+    throw new UnsupportedOperationException("Renaming snapshot is not supported on S3");
   }
 
   @Override
   public boolean deleteSnapshot(String path, String snapshotName) {
-    throw new UnsupportedOperationException("Deleting snapshot not supported on S3");
+    throw new UnsupportedOperationException("Deleting snapshot is not supported on S3");
   }
 
   public static String[] toBucketAndKey(String bucket, String path) {

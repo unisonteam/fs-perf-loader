@@ -19,6 +19,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static team.unison.perf.PerfLoaderUtils.getProperty;
+
 public class FileTransferPropertiesBuilder {
   public static List<FileTransfer> build(Properties props, SshConnectionBuilder sshConnectionBuilder) {
     List<FileTransfer> fileTransfers = new ArrayList<>();
@@ -28,18 +30,18 @@ public class FileTransferPropertiesBuilder {
     for (String fileTransferName : fileTransferNames) {
       String prefix = "file." + fileTransferName + ".";
 
-      SshConnectionBuilder sshConnectionBuilderWithUserAndGroup = sshConnectionBuilder.systemUser(props.getProperty(prefix + "user"))
-              .systemGroup(props.getProperty(prefix + "group"));
+      SshConnectionBuilder sshConnectionBuilderWithUserAndGroup = sshConnectionBuilder.systemUser(getProperty(props, prefix, "user"))
+              .systemGroup(getProperty(props, prefix, "group"));
 
-      List<String> hosts = PerfLoaderUtils.parseTemplate(props.getProperty(prefix + "hosts").replace(" ", ""));
+      List<String> hosts = PerfLoaderUtils.parseTemplate(getProperty(props, prefix, "hosts").replace(" ", ""));
       String filesDir = props.getProperty("files.dir", System.getProperty("java.io.tmpdir")) + "/";
       for (String host : hosts) {
         FileTransfer fileTransfer = new FileTransferBuilder()
-                .path(props.getProperty(prefix + "path"))
-                .filePrefix(filesDir + props.getProperty(prefix + "file.prefix"))
-                .fileAppend(Boolean.parseBoolean(props.getProperty(prefix + "file.append", "false")))
-                .fileGzip(Boolean.parseBoolean(props.getProperty(prefix + "file.gzip", "false")))
-                .period(Duration.ofSeconds(Long.parseLong(props.getProperty(prefix + "period", "30"))))
+                .path(getProperty(props, prefix, "path"))
+                .filePrefix(filesDir + getProperty(props, prefix, "file.prefix"))
+                .fileAppend(Boolean.parseBoolean(getProperty(props, prefix, "file.append", "false")))
+                .fileGzip(Boolean.parseBoolean(getProperty(props, prefix, "file.gzip", "false")))
+                .period(Duration.ofSeconds(Long.parseLong(getProperty(props, prefix, "period", "30"))))
                 .genericWorkerBuilder(ClientFactory.buildGeneric().sshConnectionBuilder(sshConnectionBuilderWithUserAndGroup.host(host)))
                 .createFileTransfer();
         fileTransfers.add(fileTransfer);

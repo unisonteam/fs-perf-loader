@@ -48,10 +48,8 @@ class HdfsFsWrapper implements FsWrapper {
         log.info("Value of configuration property for Ozone transport: {}",
                 ozConf.get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT));
 
-        if (ozConf
-                .get(OZONE_OM_TRANSPORT_CLASS,
-                        OZONE_OM_TRANSPORT_CLASS_DEFAULT) !=
-                OZONE_OM_TRANSPORT_CLASS_DEFAULT) {
+        if (!OZONE_OM_TRANSPORT_CLASS_DEFAULT.equals(ozConf
+                .get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT))) {
           log.info("Ozone transport non-default branch.");
           ServiceLoader<OmTransportFactory> transportFactoryServiceLoader =
                   ServiceLoader.load(OmTransportFactory.class);
@@ -65,7 +63,6 @@ class HdfsFsWrapper implements FsWrapper {
           }
         }
       }
-
     } catch (IOException | URISyntaxException e) {
       throw WorkerException.wrap(e);
     }
@@ -146,25 +143,43 @@ class HdfsFsWrapper implements FsWrapper {
   public boolean allowSnapshot(String path) {
     try {
       ((DistributedFileSystem) fs).allowSnapshot(new Path(path));
+      return true;
     } catch (IOException e) {
-      throw WorkerException.wrap(e);
+      log.warn("Error allowing snapshot for path {}", path, e);
+      return false;
     }
-    return true;
   }
 
   @Override
-  public boolean createSnapshot(String path, String snapshotName) throws IOException {
-    fs.createSnapshot(new Path(path), snapshotName);
-    return true;
+  public boolean createSnapshot(String path, String snapshotName) {
+    try {
+      fs.createSnapshot(new Path(path), snapshotName);
+      return true;
+    } catch (IOException e) {
+      log.warn("Error creating snapshot for path {}", path, e);
+      return false;
+    }
+  }
+
+  @Override
+  public boolean renameSnapshot(String path, String snapshotOldName, String snapshotNewName) {
+    try {
+      fs.renameSnapshot(new Path(path), snapshotOldName, snapshotNewName);
+      return true;
+    } catch (IOException e) {
+      log.warn("Error renaming in path {} snapshot {} to {}", path, snapshotOldName, snapshotNewName, e);
+      return false;
+    }
   }
 
   @Override
   public boolean deleteSnapshot(String path, String snapshotName) {
     try {
       fs.deleteSnapshot(new Path(path), snapshotName);
+      return true;
     } catch (IOException e) {
-      throw WorkerException.wrap(e);
+      log.warn("Error deleting snapshot for path {}", path, e);
+      return false;
     }
-    return true;
   }
 }

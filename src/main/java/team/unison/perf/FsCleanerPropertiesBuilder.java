@@ -15,6 +15,8 @@ import team.unison.remote.SshConnectionBuilder;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static team.unison.perf.PerfLoaderUtils.getProperty;
+
 final class FsCleanerPropertiesBuilder {
   private FsCleanerPropertiesBuilder() {
   }
@@ -27,19 +29,19 @@ final class FsCleanerPropertiesBuilder {
     for (String fsCleanerName : fsCleanerNames) {
       String prefix = "fscleaner." + fsCleanerName + ".";
 
-      String host = props.getProperty(prefix + "host");
+      String host = getProperty(props, prefix, "host");
 
       if (host == null || host.isEmpty()) {
-        throw new IllegalArgumentException("Property" + prefix + "host" + " is not set");
+        throw new IllegalArgumentException("Property " + prefix + "host is not set");
       }
 
       FsCleaner fsCleaner = new FsCleanerBuilder()
               .name(fsCleanerName)
-              .conf(Confs.get(props.getProperty(prefix + "conf")))
+              .conf(Confs.get(getProperty(props, prefix, "conf")))
               .genericWorkerBuilder(ClientFactory.buildGeneric().sshConnectionBuilder(sshConnectionBuilder.host(host)))
-              .paths(PerfLoaderUtils.parseTemplate(props.getProperty(prefix + "paths", "")))
-              .suffixes(Arrays.asList(props.getProperty(prefix + "suffixes", "").split(",")))
-              .threads(Integer.parseInt(props.getProperty(prefix + "threads", "8")))
+              .paths(PerfLoaderUtils.parseTemplate(getProperty(props, prefix, "paths", "")))
+              .suffixes(Arrays.asList(getProperty(props, prefix, "suffixes", "").split(",")))
+              .threads(Integer.parseInt(getProperty(props, prefix, "threads", "8")))
               .createFsCleaner();
 
       fsCleaners.add(fsCleaner);
