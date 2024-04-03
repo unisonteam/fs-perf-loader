@@ -23,7 +23,7 @@ public class FsWrapperFactory {
     if (conf != null) {
       nonNullConf.putAll(conf);
     }
-    String root = path.startsWith("/") ? "/" : path.replaceAll("(//.*?)/.*$", "$1");
+    String root = path.startsWith("/") ? "/" : path.replaceAll("(//.*?/).*$", "$1");
     nonNullConf.put("root", root);
 
     if (nonNullConf.containsKey("s3.uri")) {
