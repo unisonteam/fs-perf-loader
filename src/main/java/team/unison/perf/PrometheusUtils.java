@@ -78,7 +78,7 @@ public final class PrometheusUtils {
               : new String[]{HOST_NAME,
               PROCESS_NAME,
               Long.toString(objectSize)};
-      getOperationsCounter(operation, success).labels(counterLabels).inc();
+      getOperationsCounter(operation, success, counterLabels.length).labels(counterLabels).inc();
       getOperationsHistogram(operation, success).labels(HOST_NAME, PROCESS_NAME).observe((double) elapsedNanos / 1_000_000);
     } catch (Exception e) {
       log.warn("Exception in recording", e);
@@ -96,12 +96,25 @@ public final class PrometheusUtils {
             .register(COLLECTOR_REGISTRY));
   }
 
-  private static Counter getOperationsCounter(String operation, boolean success) {
+  private static Counter getOperationsCounter(String operation, boolean success, int countersCount) {
     String operationName = String.format("fsloader_%s_%s_operations", success ? "successful" : "failed", operation);
+
+    String[] labelNames;
+
+    switch (countersCount) {
+      case 2:
+        labelNames = new String[] {"hostname", "processname"};
+        break;
+      case 3:
+        labelNames = new String[] {"hostname", "processname", "objectsize"};
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported number of labels in counter: " + countersCount);
+    }
 
     return COUNTERS.computeIfAbsent(operationName, n -> Counter.build()
             .name(n)
-            .labelNames("hostname", "processname", "objectsize")
+            .labelNames(labelNames)
             .help("Total " + operation + " requests.").register(COLLECTOR_REGISTRY));
   }
 
