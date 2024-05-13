@@ -34,30 +34,38 @@ public class FsLoaderBatchRemote {
 
     byte[] barr = getData(opConf.getFillChar());
 
-    ExecutorService executorService = Executors.newFixedThreadPool(opConf.getThreadCount());
-    String randomPath = batch.keySet().stream().findFirst().get();
+    ExecutorService executor = Executors.newFixedThreadPool(opConf.getThreadCount());
+    Optional<String> first = batch.keySet().stream().findFirst();
+    if (!first.isPresent()) {
+      throw new IllegalStateException("There are no path to run command");
+    }
+    String randomPath = first.get();
     List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
 
-    List<Callable<Object>> callables = batch.entrySet().stream()
-            .map(entry -> Executors.callable(
-                    () -> {
-                      long start = System.nanoTime();
-                      boolean success = runCommand(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
-                              command);
-                      long elapsed = System.nanoTime() - start;
-                      PrometheusUtils.record(stats, command.get("operation"), elapsed, success, entry.getValue());
-                      if (opConf.getLoadDelayInMillis() > 0) {
-                        Utils.sleep(opConf.getLoadDelayInMillis());
-                      }
-                    }
-            ))
-            .collect(Collectors.toList());
+    List<CompletableFuture<?>> futures = new ArrayList<>();
+    for (Map.Entry<String, Long> entry : batch.entrySet()) {
+      futures.add(CompletableFuture.runAsync(
+        () -> {
+          long start = System.nanoTime();
+          FsWrapper fsWrapper = randomFsWrapper(fsWrappers);
+          String path = entry.getKey();
+          Long size = entry.getValue();
+          boolean success = runCommand(fsWrapper, path, size, barr, opConf.isUsetmpFile(), command);
+          long elapsed = System.nanoTime() - start;
+          PrometheusUtils.record(stats, command.get("operation"), elapsed, success, size);
+          if (opConf.getLoadDelayInMillis() > 0) {
+            Utils.sleep(opConf.getLoadDelayInMillis());
+          }
+        },
+        executor
+      ));
+    }
     try {
-      executorService.invokeAll(callables);
-    } catch (InterruptedException e) {
+     CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+    } catch (Exception e) {
       throw WorkerException.wrap(e);
     } finally {
-      executorService.shutdownNow();
+      executor.shutdownNow();
     }
     return stats;
   }

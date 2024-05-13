@@ -70,6 +70,11 @@ fsloader.LOAD.paths=/tmp/path1,/tmp/path2
 #to make this option work the rate of 'delete' command should be less than rate of 'put'
 #fsloader.LOAD.workload=path/to/workload
 
+#optional: configurations. Contains configs for consistency check
+fsloader.LOAD.conf=fsloaderconf
+conf.fsloaderconf.consistency.check=true
+conf.fsloaderconf.consistency.check.path=/tmp/consistency_check_fs_root
+
 #total threads, not for each path
 fsloader.LOAD.threads=3
 fsloader.LOAD.subdirs.depth=2

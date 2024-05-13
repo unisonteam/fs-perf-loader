@@ -82,11 +82,11 @@ public final class PerfLoaderUtils {
     return ret;
   }
 
-  private static List<Object> pathNumbers(int countInPosition, int positionsCount, int itemNoParam) {
+  private static List<Integer> pathNumbers(int countInPosition, int positionsCount, int itemNoParam) {
     if (positionsCount <= 0) {
-      return Collections.EMPTY_LIST;
+      return Collections.emptyList();
     }
-    List ret = new ArrayList(positionsCount);
+    List<Integer> ret = new ArrayList<>(positionsCount);
     int itemNo = itemNoParam;
     for (int pos = 0; pos < countInPosition; pos++) {
       ret.add(itemNo % countInPosition);
@@ -115,10 +115,9 @@ public final class PerfLoaderUtils {
     String workloadPropertyName = root.getAsJsonObject().has("workload") ? "workload" : "mixedWorkload";
 
     for (JsonElement jsonElement : root.getAsJsonObject().get(workloadPropertyName).getAsJsonArray()) {
-      Map<String, Object> map = new HashMap();
-      map = new Gson().fromJson(jsonElement, map.getClass());
-      Map<String, String> stringMap = new HashMap();
-      map.entrySet().forEach(e -> stringMap.put(e.getKey(), e.getValue().toString()));
+      Map<String, Object> map = new Gson().fromJson(jsonElement, HashMap.class);
+      Map<String, String> stringMap = new HashMap<>();
+      map.forEach((key, value) -> stringMap.put(key, value.toString()));
       ret.add(stringMap);
     }
 
@@ -171,14 +170,12 @@ public final class PerfLoaderUtils {
 
     System.out.printf("Response Time Percentiles%n");
 
-    long[] parr = new long[]{500,
-            750,
-            900,
-            950,
-            990,
-            999};
-    for (long l : parr) {
-      System.out.printf("  %.1f : %.2f ms %n", (float) l / 10, getPercentile(results, ((double) l) / 1000) / 1_000_000);
+    if (!results.isEmpty()) {
+      long[] parr = new long[] { 500, 750, 900, 950, 990, 999 };
+      for (long l : parr) {
+        System.out.printf("  %.1f : %.2f ms %n", (float) l / 10,
+            getPercentile(results, ((double) l) / 1000) / 1_000_000);
+      }
     }
   }
 

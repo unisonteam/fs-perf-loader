@@ -1,0 +1,31 @@
+#seed=12345
+ssh.user=hadoop
+ssh.key=/opt/.ssh/id_rsa_new
+#jvmoptions=....
+
+# for ozone-site.xml
+confdir=/opt/hadoop/etc/hadoop
+
+# for ozone-filesystem-hadoop3-1.4.0.jar
+jarsdir=/opt/hadoop
+
+# datanode IP
+fsloader.LOAD.hosts=10.5.0.4
+
+# om3 - current leader has to be fixed in docker image
+fsloader.LOAD.paths=ofs://om3/myvolume/mybucket/test{1..3}
+fsloader.LOAD.threads=1
+fsloader.LOAD.subdirs.depth=2
+fsloader.LOAD.subdirs.width=3
+fsloader.LOAD.batch.file.count=10
+fsloader.LOAD.batch.count=1
+fsloader.LOAD.batch.file.sizes=100:1K
+fsloader.LOAD.count=1
+fsloader.LOAD.usetmpfile=false
+fsloader.LOAD.workload=/opt/hadoop/wl.put.json
+fsloader.LOAD.fill=97
+
+#optional: configurations. Contains configs for consistency check
+fsloader.LOAD.conf=fsloaderconf
+conf.fsloaderconf.consistency.check=true
+conf.fsloaderconf.consistency.check.path=/tmp/consistency_check_fs_root

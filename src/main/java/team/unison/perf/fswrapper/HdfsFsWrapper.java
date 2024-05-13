@@ -16,17 +16,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.remote.WorkerException;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
 
+import static io.netty.util.internal.EmptyArrays.EMPTY_BYTES;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS_DEFAULT;
 
 class HdfsFsWrapper implements FsWrapper {
   private static final Logger log = LoggerFactory.getLogger(HdfsFsWrapper.class);
-  private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
+  private static final byte[] DEVNULL = new byte[FILE_SIZE_128_MB];
 
   final FileSystem fs;
 
@@ -46,15 +48,15 @@ class HdfsFsWrapper implements FsWrapper {
         ozConf.forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
 
         log.info("Value of configuration property for Ozone transport: {}",
-                ozConf.get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT));
+            ozConf.get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT));
 
         if (!OZONE_OM_TRANSPORT_CLASS_DEFAULT.equals(ozConf
-                .get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT))) {
+            .get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT))) {
           log.info("Ozone transport non-default branch.");
           ServiceLoader<OmTransportFactory> transportFactoryServiceLoader =
-                  ServiceLoader.load(OmTransportFactory.class);
+              ServiceLoader.load(OmTransportFactory.class);
           Iterator<OmTransportFactory> iterator =
-                  transportFactoryServiceLoader.iterator();
+              transportFactoryServiceLoader.iterator();
           if (iterator.hasNext()) {
             log.info("Load transport from service loader, class: {}", iterator.next().getClass().getName());
           } else {
@@ -92,7 +94,7 @@ class HdfsFsWrapper implements FsWrapper {
   }
 
   @Override
-  public boolean copy(String s, String bucket, String path) {
+  public boolean copy(String sourceBucket, String destinationBucket, String path) {
     throw new IllegalArgumentException("Not applicable for HDFS");
   }
 
@@ -180,6 +182,34 @@ class HdfsFsWrapper implements FsWrapper {
     } catch (IOException e) {
       log.warn("Error deleting snapshot for path {}", path, e);
       return false;
+    }
+  }
+
+  @Override
+  public @Nonnull byte[] readBytes(String bucket, String path) {
+    Path hdfsPath = new Path(path);
+    int fileLength = getFileLength(hdfsPath);
+    byte[] data = new byte[fileLength];
+    try (FSDataInputStream fis = fs.open(hdfsPath)) {
+      fis.readFully(data);
+      return data;
+    } catch (IOException e) {
+      log.warn("Error getting path: {}", path, e);
+      return EMPTY_BYTES;
+    }
+  }
+
+  private int getFileLength(@Nonnull Path hdfsPath) {
+    try {
+      ContentSummary fsContentSummary = fs.getContentSummary(hdfsPath);
+      long length = fsContentSummary.getLength();
+      if (length > FILE_SIZE_128_MB) {
+        throw new IllegalStateException("Can't read file more than 128MB");
+      }
+      return (int) length;
+    } catch (IOException e) {
+      log.error("Error getting file size for path: {}", hdfsPath, e);
+      return 0;
     }
   }
 }

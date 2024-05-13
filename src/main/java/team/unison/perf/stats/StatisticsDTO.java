@@ -18,7 +18,8 @@ public class StatisticsDTO implements Serializable {
   }
 
   public List<Long> getResults(String operationName) {
-    return results.get(operationName);
+    List<Long> result = results.get(operationName);
+    return (result != null) ? result : Collections.emptyList();
   }
 
   public synchronized void add(String operationName, boolean success, long elapsed) {

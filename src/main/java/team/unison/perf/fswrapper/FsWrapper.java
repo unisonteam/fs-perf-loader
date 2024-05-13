@@ -7,12 +7,17 @@
 
 package team.unison.perf.fswrapper;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 
 public interface FsWrapper {
+  int KB = 1024;
+  int MB = 1024 * KB;
+  int FILE_SIZE_128_MB = 128 * MB;
+
   boolean create(String bucket, String path, long length, byte[] data, boolean useTmpFile);
 
-  boolean copy(String s, String bucket, String path);
+  boolean copy(String sourceBucket, String destinationBucket, String path);
 
   boolean get(String bucket, String path);
 
@@ -29,4 +34,6 @@ public interface FsWrapper {
   boolean renameSnapshot(String path, String snapshotOldName, String snapshotNewName);
 
   boolean deleteSnapshot(String path, String snapshotName);
+
+  @Nonnull byte[] readBytes(String bucket, String path);
 }

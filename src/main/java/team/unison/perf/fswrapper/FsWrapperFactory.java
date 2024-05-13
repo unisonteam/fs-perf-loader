@@ -8,6 +8,7 @@
 package team.unison.perf.fswrapper;
 
 import team.unison.perf.PerfLoaderUtils;
+import team.unison.perf.fswrapper.consistency.FsConsistencyCheckerProxy;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,10 +41,7 @@ public class FsWrapperFactory {
   }
 
   private static FsWrapper newInstance(String path, Map<String, String> conf) {
-    if (conf.containsKey("s3.uri")) {
-      return new S3FsWrapper(conf);
-    } else {
-      return new HdfsFsWrapper(path, conf);
-    }
+    FsWrapper fsWrapper = conf.containsKey("s3.uri") ? new S3FsWrapper(conf) : new HdfsFsWrapper(path, conf);
+    return FsConsistencyCheckerProxy.createOrUseDefault(conf, fsWrapper);
   }
 }

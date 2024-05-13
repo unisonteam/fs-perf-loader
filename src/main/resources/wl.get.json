@@ -1,0 +1,8 @@
+{
+  "workload": [
+    {
+      "operation": "get",
+      "bucket": "mybucket"
+    }
+  ]
+}

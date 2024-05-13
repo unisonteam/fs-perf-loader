@@ -19,6 +19,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import team.unison.remote.WorkerException;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -27,10 +29,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static io.netty.util.internal.EmptyArrays.EMPTY_BYTES;
+
 public class S3FsWrapper implements FsWrapper {
   private static final Logger log = LoggerFactory.getLogger(S3FsWrapper.class);
   private final S3Client s3Client;
-  private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
+  private static final byte[] DEVNULL = new byte[128 * MB];
 
   public S3FsWrapper(Map<String, String> conf) {
     AwsBasicCredentials awsBasicCredentials = AwsBasicCredentials.create(conf.get("s3.key"),
@@ -68,9 +72,9 @@ public class S3FsWrapper implements FsWrapper {
   }
 
   @Override
-  public boolean copy(String sourceBucket, String bucket, String path) {
+  public boolean copy(String sourceBucket, String destinationBucket, String path) {
     String[] sourceBucketAndKey = toBucketAndKey(sourceBucket, path);
-    String[] destinationBucketAndKey = toBucketAndKey(bucket, path);
+    String[] destinationBucketAndKey = toBucketAndKey(destinationBucket, path);
     CopyObjectResponse copyObjectResponse = s3Client.copyObject(CopyObjectRequest.builder()
             .sourceBucket(sourceBucketAndKey[0])
             .destinationBucket(destinationBucketAndKey[1])
@@ -157,6 +161,29 @@ public class S3FsWrapper implements FsWrapper {
     throw new UnsupportedOperationException("Deleting snapshot is not supported on S3");
   }
 
+  @Override
+  public @Nonnull byte[] readBytes(String bucket, String path) {
+    String[] bucketAndKey = toBucketAndKey(bucket, path);
+    ResponseInputStream<GetObjectResponse> getObjectResponse = s3Client.getObject(GetObjectRequest.builder()
+        .bucket(bucketAndKey[0])
+        .key(bucketAndKey[1])
+        .build());
+
+    GetObjectResponse response = getObjectResponse.response();
+    if (!response.sdkHttpResponse().isSuccessful()) {
+      return EMPTY_BYTES;
+    }
+
+    int fileLength = getFileLength(response);
+    byte[] data = new byte[fileLength];
+    try {
+      getObjectResponse.read(data);
+      return data;
+    } catch (IOException e) {
+      throw WorkerException.wrap(e);
+    }
+  }
+
   public static String[] toBucketAndKey(String bucket, String path) {
     String pathNoLeadingSlash = (path.charAt(0) == '/') ? path.substring(1) : path;
     if (bucket != null) {
@@ -165,5 +192,13 @@ public class S3FsWrapper implements FsWrapper {
     }
     // should always contain slash because it's a full path with leaf file name
     return pathNoLeadingSlash.split("/", 2);
+  }
+
+  private int getFileLength(@Nonnull GetObjectResponse response) {
+    long length = response.contentLength();
+    if (length > FILE_SIZE_128_MB) {
+      throw new IllegalStateException("Can't read file more than 128MB");
+    }
+    return (int) length;
   }
 }
