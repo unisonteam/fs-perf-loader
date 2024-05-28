@@ -25,6 +25,8 @@ public interface Agent extends Remote {
 
   String info() throws IOException;
 
+  void setup(String randomPath, Map<String, String> conf, int threads) throws IOException;
+
   StatisticsDTO runCommand(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command,
                            FsLoaderOperationConf opConf) throws IOException;
 

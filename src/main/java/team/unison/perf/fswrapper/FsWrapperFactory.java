@@ -35,7 +35,7 @@ public class FsWrapperFactory {
       }
       return ret;
     } else {
-      return Collections.singletonList(CACHE.computeIfAbsent(nonNullConf, map -> newInstance(root, map)));
+      return Collections.singletonList(newInstance(root, nonNullConf));
     }
   }
 

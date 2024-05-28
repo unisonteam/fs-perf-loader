@@ -24,13 +24,13 @@ import java.util.*;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS_DEFAULT;
 
-class HdfsFsWrapper implements FsWrapper {
+public class HdfsFsWrapper implements FsWrapper {
   private static final Logger log = LoggerFactory.getLogger(HdfsFsWrapper.class);
   private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
 
   final FileSystem fs;
 
-  HdfsFsWrapper(String path, Map<String, String> properties) {
+  public HdfsFsWrapper(String path, Map<String, String> properties) {
     Configuration conf = new Configuration();
     if (properties != null) {
       properties.forEach(conf::set);
@@ -38,12 +38,12 @@ class HdfsFsWrapper implements FsWrapper {
     try {
       fs = FileSystem.get(new URI(path), conf);
       log.info("Created HDFS wrapper for the path {} with following configuration: ", path);
-      fs.getConf().forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
+//      fs.getConf().forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
 
       if (path.startsWith("ofs://")) {
         log.info("Ozone configuration for path {}: ", path);
         OzoneConfiguration ozConf = OzoneConfiguration.of(fs.getConf());
-        ozConf.forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
+//        ozConf.forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
 
         log.info("Value of configuration property for Ozone transport: {}",
                 ozConf.get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT));

@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.cleaner.FsCleanerRemote;
 import team.unison.perf.filetransfer.FileTransferRemote;
+import team.unison.perf.fswrapper.FsWrapper;
+import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.perf.jstack.JstackSaverRemote;
 import team.unison.perf.loader.FsLoaderBatchRemote;
 import team.unison.perf.loader.FsLoaderOperationConf;
@@ -30,15 +32,15 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.rmi.server.Unreferenced;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.*;
 
 import static team.unison.remote.Utils.sleep;
 
 class AgentImpl implements Agent, Unreferenced {
   private static final Logger log = LoggerFactory.getLogger(AgentImpl.class);
+  private static final Map<Thread, FsWrapper> threadToFsWrapper = new ConcurrentHashMap<>();
+  private static ExecutorService executorService;
 
   private AgentImpl() {
   }
@@ -77,15 +79,28 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
+  public void setup(String randomPath, Map<String, String> conf, int threads) {
+   executorService = Executors.newFixedThreadPool(threads, runnable -> {
+     Thread thread = new Thread(runnable);
+     threadToFsWrapper.computeIfAbsent(thread, t -> {
+       FsWrapper fsWrapper = FsWrapperFactory.get(randomPath, conf).get(0);
+       log.info("Creating FsWrapper {}", fsWrapper);
+       return fsWrapper;
+     });
+     return thread;
+   });
+  }
+
+  @Override
   public StatisticsDTO runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command,
                                   FsLoaderOperationConf opConf) {
-    return FsLoaderBatchRemote.runCommand(conf, batch, command, opConf);
+    return FsLoaderBatchRemote.runCommand(executorService, threadToFsWrapper, batch, command, opConf);
   }
 
   @Override
   public StatisticsDTO runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload,
                                         FsLoaderOperationConf opConf) {
-    return FsLoaderBatchRemote.runMixedWorkload(conf, batch, workload, opConf);
+    return FsLoaderBatchRemote.runMixedWorkload(executorService, threadToFsWrapper, batch, workload, opConf);
   }
 
   @Override
@@ -129,6 +144,9 @@ class AgentImpl implements Agent, Unreferenced {
   public void shutdown() {
     log.info("Agent stopped at {}", new Date());
     PrometheusUtils.clearStatistics(true);
+    log.info("ExecutorService stopped at {}", new Date());
+    executorService.shutdownNow();
+    log.info("Shutdown VM {}", new Date());
     // start a separate thread to shut down VM to respond properly to the remote caller
     new Thread(() -> {
       sleep(1000);

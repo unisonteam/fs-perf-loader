@@ -216,6 +216,15 @@ public final class FsLoader implements Runnable {
     List<GenericWorker> workersCopy = new ArrayList<>(genericWorkers);
     loadResults.clear();
 
+    String randomPath = filesInBatches.get(0).keySet().stream().findFirst().get();
+    workersCopy.forEach(worker -> {
+      try {
+        worker.getAgent().setup(randomPath, conf, threads);
+      } catch (IOException e) {
+        log.warn("Can't init fsWrappers: {}" ,e.getMessage());
+      }
+    });
+
     try {
       try {
         if (workload.get(0).containsKey("operationType")) { // mixed workload
@@ -237,9 +246,11 @@ public final class FsLoader implements Runnable {
         } else { // regular workload
           for (Map<String, String> command : workload) {
             Instant before = Instant.now();
+            log.info("filesInBatches size: {}", filesInBatches.size());
             List<Callable<StatisticsDTO>> callables = filesInBatches.stream()
                     .map(batch -> ((Callable<StatisticsDTO>) () -> runCommand(workersCopy, command, batch)))
                     .collect(Collectors.toList());
+            log.info("executorService.invokeAll(callables)");
             List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
             List<StatisticsDTO> commandResults = futures.stream().map(f -> {
               try {
