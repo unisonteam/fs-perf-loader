@@ -36,7 +36,9 @@ class HdfsFsWrapper implements FsWrapper {
       properties.forEach(conf::set);
     }
     try {
-      fs = FileSystem.get(new URI(path), conf);
+      URI uri = new URI(path);
+      disableFileSystemCache(uri, conf);
+      fs = FileSystem.get(uri, conf);
       log.info("Created HDFS wrapper for the path {} with following configuration: ", path);
       fs.getConf().forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
 
@@ -65,6 +67,18 @@ class HdfsFsWrapper implements FsWrapper {
       }
     } catch (IOException | URISyntaxException e) {
       throw WorkerException.wrap(e);
+    }
+  }
+
+  private static void disableFileSystemCache(URI uri, Configuration conf) throws URISyntaxException {
+    String scheme = uri.getScheme();
+    if (scheme != null) {
+      String disableCacheName = String.format("fs.%s.impl.disable.cache", scheme);
+      conf.setBoolean(disableCacheName, true);
+      boolean disableCache = conf.getBoolean(disableCacheName, false);
+      log.info("Uri scheme: {}, authority: {}, disableCache: {}", scheme, uri.getAuthority(), disableCache);
+    } else {
+      log.warn("Can't disable cache for NULL uri scheme!");
     }
   }
 
