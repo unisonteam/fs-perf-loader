@@ -39,8 +39,6 @@ public class FsLoaderBatchRemote {
       return stats;
     }
 
-    byte[] barr = getData(opConf.getFillChar());
-
     List<CompletableFuture<Void>> futureList = new ArrayList<>();
     for (Map.Entry<String, Long> entry : batch.entrySet()) {
       futureList.add(CompletableFuture.runAsync(
@@ -48,7 +46,7 @@ public class FsLoaderBatchRemote {
             long start = System.nanoTime();
             FsWrapper fsWrapper = threadToFsWrapperMap.get(Thread.currentThread());
             log.info("Use FsWrapper {}", fsWrapper);
-            boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
+            boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), opConf.getData(), opConf.isUsetmpFile(),
                 command);
             long elapsed = System.nanoTime() - start;
             PrometheusUtils.record(stats, command.get("operation"), elapsed, success, entry.getValue());
@@ -77,15 +75,13 @@ public class FsLoaderBatchRemote {
       return stats;
     }
 
-    byte[] barr = getData(opConf.getFillChar());
-
     AtomicLong pos = new AtomicLong();
     List<String> filePool = Collections.synchronizedList(new ArrayList<>());
 
     List<Callable<StatisticsDTO>> callables = batch.entrySet().stream()
             .map(entry -> ((Callable<StatisticsDTO>) () -> {
               FsWrapper fsWrapper = fsWrapperList.get(Thread.currentThread());
-              return runWorkloadForSingleFile(fsWrapper, entry.getKey(), entry.getValue(), barr, opConf,
+              return runWorkloadForSingleFile(fsWrapper, entry.getKey(), entry.getValue(), opConf.getData(), opConf,
                   workload, pos, filePool);
             }
             )).collect(Collectors.toList());
@@ -155,7 +151,7 @@ public class FsLoaderBatchRemote {
     return stats;
   }
 
-  private static byte[] getData(long fill) {
+  public static byte[] getData(long fill) {
     byte[] barr = new byte[WRITE_DATA_ARRAY_SIZE];
 
     // 0 - no action - leave array filled with zeroes

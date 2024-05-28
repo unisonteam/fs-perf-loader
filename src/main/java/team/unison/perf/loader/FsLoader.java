@@ -196,13 +196,16 @@ public final class FsLoader implements Runnable {
               .map(GenericWorkerBuilder::get)
               .collect(Collectors.toList());
 
+      char fillChar = (char) ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
+      byte[] barr = FsLoaderBatchRemote.getData(fillChar);
+
       for (int i = 0; i < count; i++) {
         if (i != 0) {
           log.info("Waiting " + period + " between loads");
           Utils.sleep(period.toMillis());
         }
         log.info("Start load {}{}", name, (count == 1) ? "" : ": " + (i + 1));
-        runSingle(genericWorkers);
+        runSingle(genericWorkers, barr);
         printSummary();
       }
     } catch (Exception e) {
@@ -211,7 +214,7 @@ public final class FsLoader implements Runnable {
     log.info("Load {} ended", name);
   }
 
-  private void runSingle(List<GenericWorker> genericWorkers) {
+  private void runSingle(List<GenericWorker> genericWorkers, byte[] data) {
     ExecutorService executorService = Executors.newFixedThreadPool(genericWorkers.size());
     List<GenericWorker> workersCopy = new ArrayList<>(genericWorkers);
     loadResults.clear();
@@ -230,7 +233,7 @@ public final class FsLoader implements Runnable {
         if (workload.get(0).containsKey("operationType")) { // mixed workload
           Instant before = Instant.now();
           List<Callable<StatisticsDTO>> callables = filesInBatches.stream()
-                  .map(batch -> ((Callable<StatisticsDTO>) () -> runMixedWorkload(workersCopy, batch)))
+                  .map(batch -> ((Callable<StatisticsDTO>) () -> runMixedWorkload(workersCopy, batch, data)))
                   .collect(Collectors.toList());
           List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
           List<StatisticsDTO> commandResults = futures.stream().map(f -> {
@@ -248,7 +251,7 @@ public final class FsLoader implements Runnable {
             Instant before = Instant.now();
             log.info("filesInBatches size: {}", filesInBatches.size());
             List<Callable<StatisticsDTO>> callables = filesInBatches.stream()
-                    .map(batch -> ((Callable<StatisticsDTO>) () -> runCommand(workersCopy, command, batch)))
+                    .map(batch -> ((Callable<StatisticsDTO>) () -> runCommand(workersCopy, command, batch, data)))
                     .collect(Collectors.toList());
             log.info("executorService.invokeAll(callables)");
             List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
@@ -285,7 +288,7 @@ public final class FsLoader implements Runnable {
     }
   }
 
-  private StatisticsDTO runMixedWorkload(List<GenericWorker> workersCopy, Map<String, Long> batch) {
+  private StatisticsDTO runMixedWorkload(List<GenericWorker> workersCopy, Map<String, Long> batch, byte[] data) {
     GenericWorker genericWorker;
     StatisticsDTO loadResult;
     synchronized (workersCopy) {
@@ -294,9 +297,10 @@ public final class FsLoader implements Runnable {
     try {
       log.info("Start mixed workload at host {}", genericWorker.getHost());
       Instant before = Instant.now();
-      char fillChar = (char) ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
-      loadResult = genericWorker.getAgent().runMixedWorkload(conf, batch, workload, new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), fillChar));
-      log.info("End mixed workload at host {}, batch took {}", genericWorker.getHost(), Duration.between(before, Instant.now()));
+      loadResult = genericWorker.getAgent().runMixedWorkload(conf, batch, workload,
+          new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), data));
+      log.info("End mixed workload at host {}, batch took {}", genericWorker.getHost(), Duration
+          .between(before, Instant.now()));
     } catch (IOException e) {
       throw WorkerException.wrap(e);
     } finally {
@@ -308,7 +312,8 @@ public final class FsLoader implements Runnable {
     return loadResult;
   }
 
-  private StatisticsDTO runCommand(List<GenericWorker> workersCopy, Map<String, String> command, Map<String, Long> batch) {
+  private StatisticsDTO runCommand(List<GenericWorker> workersCopy, Map<String, String> command, Map<String, Long> batch,
+                                   byte[] barr) {
     GenericWorker genericWorker;
     StatisticsDTO commandResult;
     synchronized (workersCopy) {
@@ -316,10 +321,10 @@ public final class FsLoader implements Runnable {
     }
     try {
       log.info("Start batch for command '{}' at host {}", command.get("operation"), genericWorker.getHost());
-      char fillChar = (char) ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
       Instant before = Instant.now();
       try {
-        commandResult = genericWorker.getAgent().runCommand(conf, batch, command, new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), fillChar));
+        commandResult = genericWorker.getAgent().runCommand(conf, batch, command,
+            new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), barr));
       } catch (Exception e) {
         log.warn("Error running load", e);
         throw WorkerException.wrap(e);
