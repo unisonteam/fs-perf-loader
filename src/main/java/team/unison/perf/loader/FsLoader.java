@@ -196,16 +196,8 @@ public final class FsLoader implements Runnable {
   public void run() {
     try {
       List<GenericWorker> genericWorkers = genericWorkerBuilders.parallelStream()
-              .map(GenericWorkerBuilder::get)
+              .map(this::initAgent)
               .collect(Collectors.toList());
-
-      genericWorkers.forEach(worker -> {
-        try {
-          worker.getAgent().setup(conf, threads);
-        } catch (IOException e) {
-          log.warn("Can't init fsWrappers: {}" ,e.getMessage());
-        }
-      });
 
       byte[] writableData = getData();
 
@@ -385,6 +377,16 @@ public final class FsLoader implements Runnable {
     return new String(arr);
   }
 
+  private @Nonnull GenericWorker initAgent(@Nonnull GenericWorkerBuilder workerBuilder) {
+    GenericWorker genericWorker = workerBuilder.get();
+    try {
+      genericWorker.getAgent().init(conf, threads);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    return genericWorker;
+  }
+
   private byte[] getData() {
     long fillChar = ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
     byte[] barr = new byte[WRITE_DATA_ARRAY_SIZE];
@@ -403,7 +405,6 @@ public final class FsLoader implements Runnable {
   private static @Nonnull String getRootPath(@Nonnull String path) {
     return path.startsWith("/") ? "/" : path.replaceAll("(//.*?/).*$", "$1");
   }
-
 
   @Override
   public String toString() {

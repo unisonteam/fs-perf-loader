@@ -80,7 +80,7 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public void setup(@Nonnull Map<String, String> conf, int threads) {
+  public void init(@Nonnull Map<String, String> conf, int threads) {
    executorService = Executors.newFixedThreadPool(threads, runnable -> {
      Thread thread = new Thread(runnable);
      threadToFsWrapper.computeIfAbsent(thread, t -> FsWrapperFactory.get(conf));
