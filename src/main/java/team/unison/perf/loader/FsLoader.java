@@ -199,6 +199,14 @@ public final class FsLoader implements Runnable {
               .map(GenericWorkerBuilder::get)
               .collect(Collectors.toList());
 
+      genericWorkers.forEach(worker -> {
+        try {
+          worker.getAgent().setup(conf, threads);
+        } catch (IOException e) {
+          log.warn("Can't init fsWrappers: {}" ,e.getMessage());
+        }
+      });
+
       byte[] writableData = getData();
 
       for (int i = 0; i < count; i++) {
@@ -220,14 +228,6 @@ public final class FsLoader implements Runnable {
     ExecutorService executorService = Executors.newFixedThreadPool(genericWorkers.size());
     List<GenericWorker> workersCopy = new ArrayList<>(genericWorkers);
     loadResults.clear();
-
-    workersCopy.forEach(worker -> {
-      try {
-        worker.getAgent().setup(conf, threads);
-      } catch (IOException e) {
-        log.warn("Can't init fsWrappers: {}" ,e.getMessage());
-      }
-    });
 
     try {
       try {

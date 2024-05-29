@@ -12,14 +12,16 @@ import team.unison.perf.PerfLoaderUtils;
 import javax.annotation.Nonnull;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class FsWrapperFactory {
   private static final Map<Map<String, String>, FsWrapper> CACHE = new ConcurrentHashMap<>();
+  private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
 
   private FsWrapperFactory() {
   }
 
-  public static List<FsWrapper> get(@Nonnull Map<String, String> conf) {
+  public static FsWrapper get(@Nonnull Map<String, String> conf) {
     String root = conf.get("root");
     if (root == null) {
       throw new IllegalArgumentException("Missing root configuration");
@@ -32,9 +34,9 @@ public class FsWrapperFactory {
         conf.put("s3.uri", s3uri);
         ret.add(CACHE.computeIfAbsent(conf, map -> newInstance(root, map)));
       }
-      return ret;
+      return randomFsWrapper(ret);
     } else {
-      return Collections.singletonList(newInstance(root, conf));
+      return newInstance(root, conf);
     }
   }
 
@@ -44,5 +46,9 @@ public class FsWrapperFactory {
     } else {
       return new HdfsFsWrapper(path, conf);
     }
+  }
+
+  private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {
+    return fsWrappers.get(FS_WRAPPER_COUNTER.getAndIncrement() % fsWrappers.size());
   }
 }
