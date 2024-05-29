@@ -42,8 +42,7 @@ public class FsLoaderBuilder {
   }
 
   public FsLoaderBuilder conf(Map<String, String> conf) {
-    this.conf = (conf == null) ? null : new HashMap<>(conf);
-
+    this.conf = (conf == null) ? new HashMap<>() : new HashMap<>(conf);
     return this;
   }
 

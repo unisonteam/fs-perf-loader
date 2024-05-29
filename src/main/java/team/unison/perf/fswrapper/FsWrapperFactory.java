@@ -9,6 +9,7 @@ package team.unison.perf.fswrapper;
 
 import team.unison.perf.PerfLoaderUtils;
 
+import javax.annotation.Nonnull;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -18,24 +19,22 @@ public class FsWrapperFactory {
   private FsWrapperFactory() {
   }
 
-  public static List<FsWrapper> get(String path, Map<String, String> conf) {
-    Map<String, String> nonNullConf = new HashMap<>();
-    if (conf != null) {
-      nonNullConf.putAll(conf);
+  public static List<FsWrapper> get(@Nonnull Map<String, String> conf) {
+    String root = conf.get("root");
+    if (root == null) {
+      throw new IllegalArgumentException("Missing root configuration");
     }
-    String root = path.startsWith("/") ? "/" : path.replaceAll("(//.*?/).*$", "$1");
-    nonNullConf.put("root", root);
 
-    if (nonNullConf.containsKey("s3.uri")) {
-      List<String> s3Uris = PerfLoaderUtils.parseTemplate(nonNullConf.get("s3.uri"));
+    if (conf.containsKey("s3.uri")) {
+      List<String> s3Uris = PerfLoaderUtils.parseTemplate(conf.get("s3.uri"));
       List<FsWrapper> ret = new ArrayList<>();
       for (String s3uri : s3Uris) {
-        nonNullConf.put("s3.uri", s3uri);
-        ret.add(CACHE.computeIfAbsent(nonNullConf, map -> newInstance(root, map)));
+        conf.put("s3.uri", s3uri);
+        ret.add(CACHE.computeIfAbsent(conf, map -> newInstance(root, map)));
       }
       return ret;
     } else {
-      return Collections.singletonList(newInstance(root, nonNullConf));
+      return Collections.singletonList(newInstance(root, conf));
     }
   }
 

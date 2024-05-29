@@ -22,6 +22,7 @@ import team.unison.perf.snapshot.FsSnapshotterBatchRemote;
 import team.unison.perf.snapshot.FsSnapshotterOperationConf;
 import team.unison.perf.stats.StatisticsDTO;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -79,14 +80,10 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public void setup(String randomPath, Map<String, String> conf, int threads) {
+  public void setup(@Nonnull Map<String, String> conf, int threads) {
    executorService = Executors.newFixedThreadPool(threads, runnable -> {
      Thread thread = new Thread(runnable);
-     threadToFsWrapper.computeIfAbsent(thread, t -> {
-       FsWrapper fsWrapper = FsWrapperFactory.get(randomPath, conf).get(0);
-       log.info("Creating FsWrapper {}", fsWrapper);
-       return fsWrapper;
-     });
+     threadToFsWrapper.computeIfAbsent(thread, t -> FsWrapperFactory.get(conf).get(0));
      return thread;
    });
   }

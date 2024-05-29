@@ -16,6 +16,8 @@ import team.unison.remote.GenericWorkerBuilder;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
 
+import javax.annotation.Nonnull;
+
 import static team.unison.perf.PerfLoaderUtils.initSubdirs;
 
 import java.io.IOException;
@@ -23,15 +25,13 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public final class FsLoader implements Runnable {
   private static final Logger log = LoggerFactory.getLogger(FsLoader.class);
+  private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
 
   /**
    * loader may fill paths one by one - one batch - one path (type='window') or
@@ -70,7 +70,9 @@ public final class FsLoader implements Runnable {
 
   private final Type type;
 
-  FsLoader(String name, Map<String, String> conf, Collection<GenericWorkerBuilder> genericWorkerBuilders,
+  FsLoader(String name,
+           @Nonnull Map<String, String> conf,
+           Collection<GenericWorkerBuilder> genericWorkerBuilders,
            int threads, List<String> paths, List<Map<String, String>> workload,
            int subdirsWidth, int subdirsDepth, String subdirsFormat, int batches, boolean useTmpFile,
            Duration loadDelay, Duration commandDelay,
@@ -79,6 +81,7 @@ public final class FsLoader implements Runnable {
            Random random, Type type) {
     this.name = name;
     this.conf = conf;
+    conf.put("root", getRootPath(paths.get(0)));
     this.genericWorkerBuilders = new ArrayList<>(genericWorkerBuilders);
     this.threads = threads;
     this.paths = new ArrayList<>(paths);
@@ -219,10 +222,9 @@ public final class FsLoader implements Runnable {
     List<GenericWorker> workersCopy = new ArrayList<>(genericWorkers);
     loadResults.clear();
 
-    String randomPath = filesInBatches.get(0).keySet().stream().findFirst().get();
     workersCopy.forEach(worker -> {
       try {
-        worker.getAgent().setup(randomPath, conf, threads);
+        worker.getAgent().setup(conf, threads);
       } catch (IOException e) {
         log.warn("Can't init fsWrappers: {}" ,e.getMessage());
       }
@@ -372,8 +374,8 @@ public final class FsLoader implements Runnable {
         averageObjectSize = (long) filesSizes.stream().mapToLong(l -> l).average().orElse(0);
       }
 
-      PerfLoaderUtils.printStatistics(header, op, conf == null ? null : conf.get("s3.uri"),
-              threads * genericWorkerBuilders.size(), averageObjectSize, globalResults, duration);
+      PerfLoaderUtils.printStatistics(header, op, conf.get("s3.uri"),
+          threads * genericWorkerBuilders.size(), averageObjectSize, globalResults, duration);
     }
   }
 
@@ -385,6 +387,26 @@ public final class FsLoader implements Runnable {
     }
     return new String(arr);
   }
+
+  private byte[] getData() {
+    long fillChar = ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
+    byte[] barr = new byte[WRITE_DATA_ARRAY_SIZE];
+
+    // 0 - no action - leave array filled with zeroes
+    if (fillChar < 0) {
+      ThreadLocalRandom.current().nextBytes(barr);
+    } else if (fillChar > 0) {
+      Arrays.fill(barr, (byte) fillChar);
+    }
+
+    return barr;
+  }
+
+  // Get root ("ofs:://om3") from paths ("ofs://om3/myvolume/mybucket/test{1..3}")
+  private static @Nonnull String getRootPath(@Nonnull String path) {
+    return path.startsWith("/") ? "/" : path.replaceAll("(//.*?/).*$", "$1");
+  }
+
 
   @Override
   public String toString() {

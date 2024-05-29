@@ -11,6 +11,7 @@ import team.unison.perf.loader.FsLoaderOperationConf;
 import team.unison.perf.snapshot.FsSnapshotterOperationConf;
 import team.unison.perf.stats.StatisticsDTO;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.rmi.Remote;
 import java.util.List;
@@ -25,7 +26,7 @@ public interface Agent extends Remote {
 
   String info() throws IOException;
 
-  void setup(String randomPath, Map<String, String> conf, int threads) throws IOException;
+  void setup(@Nonnull Map<String, String> conf, int threads) throws IOException;
 
   StatisticsDTO runCommand(Map<String, Long> arg, Map<String, String> command,
                            FsLoaderOperationConf opConf) throws IOException;
