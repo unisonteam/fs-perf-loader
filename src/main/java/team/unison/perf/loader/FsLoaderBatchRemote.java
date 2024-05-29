@@ -7,8 +7,6 @@
 
 package team.unison.perf.loader;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.stats.StatisticsDTO;
@@ -23,9 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 public class FsLoaderBatchRemote {
-  private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
   private static final int MAX_FILE_POOL_SIZE = 1_000_000; // approximate
-  private static final Logger log = LoggerFactory.getLogger(FsLoaderBatchRemote.class);
 
   public static StatisticsDTO runCommand(
       @Nonnull ExecutorService executorService,
@@ -45,7 +41,6 @@ public class FsLoaderBatchRemote {
           () -> {
             long start = System.nanoTime();
             FsWrapper fsWrapper = threadToFsWrapperMap.get(Thread.currentThread());
-            log.info("Use FsWrapper {}", fsWrapper);
             boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), opConf.getData(), opConf.isUsetmpFile(),
                 command);
             long elapsed = System.nanoTime() - start;
@@ -62,14 +57,17 @@ public class FsLoaderBatchRemote {
       CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0])).join();
     } catch (Exception e) {
       throw WorkerException.wrap(e);
-    } finally {
-//      executorService.shutdownNow();
     }
     return stats;
   }
 
-  public static StatisticsDTO runMixedWorkload(ExecutorService executorService, Map<Thread, FsWrapper> fsWrapperList, Map<String, Long> batch, List<Map<String, String>> workload,
-                                               FsLoaderOperationConf opConf) {
+  public static StatisticsDTO runMixedWorkload(
+      ExecutorService executorService,
+      Map<Thread, FsWrapper> fsWrapperList,
+      Map<String, Long> batch,
+      List<Map<String, String>> workload,
+      FsLoaderOperationConf opConf
+  ) {
     StatisticsDTO stats = new StatisticsDTO();
     if (batch.isEmpty()) {
       return stats;
@@ -107,10 +105,16 @@ public class FsLoaderBatchRemote {
     return stats;
   }
 
-  private static StatisticsDTO runWorkloadForSingleFile(FsWrapper fsWrapper, String fileName, Long fileSize, byte[] barr,
-                                                        FsLoaderOperationConf opConf, List<Map<String, String>> workload, AtomicLong seq,
-                                                        List<String> filePool) {
-
+  private static StatisticsDTO runWorkloadForSingleFile(
+      FsWrapper fsWrapper,
+      String fileName,
+      long fileSize,
+      byte[] writableData,
+      FsLoaderOperationConf opConf,
+      List<Map<String, String>> workload,
+      AtomicLong seq,
+      List<String> filePool
+  ) {
     // json converts all numbers to double
     int firstCommandRatio = (int) Double.parseDouble(workload.get(0).get("ratio"));
     long commandSeq = seq.incrementAndGet();
@@ -136,7 +140,7 @@ public class FsLoaderBatchRemote {
       int timesToRunCommand = baseRunCount + variableRunCount;
       for (int i = 0; i < timesToRunCommand; i++) {
         long start = System.nanoTime();
-        boolean success = runCommand(fsWrapper, fileName, fileSize, barr, opConf.isUsetmpFile(), command);
+        boolean success = runCommand(fsWrapper, fileName, fileSize, writableData, opConf.isUsetmpFile(), command);
         long elapsed = System.nanoTime() - start;
         PrometheusUtils.record(stats, command.get("operationType"), elapsed, success, fileSize);
         if (!success) {
@@ -151,18 +155,6 @@ public class FsLoaderBatchRemote {
     return stats;
   }
 
-  public static byte[] getData(long fill) {
-    byte[] barr = new byte[WRITE_DATA_ARRAY_SIZE];
-
-    // 0 - no action - leave array filled with zeroes
-    if (fill < 0) {
-      ThreadLocalRandom.current().nextBytes(barr);
-    } else if (fill > 0) {
-      Arrays.fill(barr, (byte) fill);
-    }
-
-    return barr;
-  }
 
   private static boolean runCommand(FsWrapper fsWrapper, String path, long size, byte[] data, boolean useTmpFile,
                                     Map<String, String> command) {

@@ -24,13 +24,13 @@ import java.util.*;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_TRANSPORT_CLASS_DEFAULT;
 
-public class HdfsFsWrapper implements FsWrapper {
+class HdfsFsWrapper implements FsWrapper {
   private static final Logger log = LoggerFactory.getLogger(HdfsFsWrapper.class);
   private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
 
   final FileSystem fs;
 
-  public HdfsFsWrapper(String path, Map<String, String> properties) {
+  HdfsFsWrapper(String path, Map<String, String> properties) {
     Configuration conf = new Configuration();
     if (properties != null) {
       properties.forEach(conf::set);
@@ -83,13 +83,13 @@ public class HdfsFsWrapper implements FsWrapper {
   }
 
   @Override
-  public boolean create(String bucket, String path, long length, byte[] data, boolean useTmpFile) {
+  public boolean create(String bucket, String path, long length, byte[] writableData, boolean useTmpFile) {
     final Path tmpPath = useTmpFile ? new Path(path + "._COPYING_") : new Path(path);
     try {
       try (FSDataOutputStream fdos = fs.create(tmpPath)) {
         while (fdos.getPos() < length) {
-          int toWrite = (fdos.getPos() + data.length < length) ? data.length : (int) (length - fdos.getPos());
-          fdos.write(data, 0, toWrite);
+          int toWrite = (fdos.getPos() + writableData.length < length) ? writableData.length : (int) (length - fdos.getPos());
+          fdos.write(writableData, 0, toWrite);
         }
       }
       if (useTmpFile) {

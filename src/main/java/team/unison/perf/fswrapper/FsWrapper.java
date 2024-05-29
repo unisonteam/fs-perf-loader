@@ -10,7 +10,7 @@ package team.unison.perf.fswrapper;
 import java.util.List;
 
 public interface FsWrapper {
-  boolean create(String bucket, String path, long length, byte[] data, boolean useTmpFile);
+  boolean create(String bucket, String path, long length, byte[] writableData, boolean useTmpFile);
 
   boolean copy(String s, String bucket, String path);
 

@@ -57,13 +57,13 @@ public class S3FsWrapper implements FsWrapper {
   }
 
   @Override
-  public boolean create(String bucket, String path, long length, byte[] data, boolean useTmpFile) {
+  public boolean create(String bucket, String path, long length, byte[] writableData, boolean useTmpFile) {
     String[] bucketAndKey = toBucketAndKey(bucket, path);
     PutObjectResponse putObjectResponse = s3Client.putObject(PutObjectRequest.builder()
                     .bucket(bucketAndKey[0])
                     .key(bucketAndKey[1])
                     .build(),
-            RequestBody.fromInputStream(new EndlessInputStream(data), length));
+            RequestBody.fromInputStream(new EndlessInputStream(writableData), length));
     return putObjectResponse.sdkHttpResponse().isSuccessful();
   }
 

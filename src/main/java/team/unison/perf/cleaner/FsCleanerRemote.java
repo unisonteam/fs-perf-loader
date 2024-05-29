@@ -42,18 +42,16 @@ public class FsCleanerRemote {
             break;
           }
 
-          List<CompletableFuture<Boolean>> futures = new ArrayList<>();
+          List<CompletableFuture<Void>> futures = new ArrayList<>();
           for (String subPath : subPaths) {
-            Optional<String> fileSuffix = suffixes.stream().filter(subPath::endsWith).findAny();
-
-            if (!fileSuffix.isPresent()) {
+            if (hasFileSuffix(suffixes, subPath)) {
               continue;
             }
 
-            futures.add(CompletableFuture.supplyAsync(
+            futures.add(CompletableFuture.runAsync(
                 () -> {
                   FsWrapper fsWrapper = threadToFsWrapperMap.get(Thread.currentThread());
-                  return PrometheusUtils.runAndRecord(stats, "delete", () -> fsWrapper.delete(bucket, subPath));
+                  PrometheusUtils.runAndRecord(stats, "delete", () -> fsWrapper.delete(bucket, subPath));
                 },
                 executorService));
           }
@@ -66,8 +64,7 @@ public class FsCleanerRemote {
       }
 
       for (String path : paths) {
-        Optional<String> fileSuffix = suffixes.stream().filter(path::endsWith).findAny();
-        if (!fileSuffix.isPresent()) {
+        if (hasFileSuffix(suffixes, path)) {
           continue;
         }
         executorService.submit(
@@ -81,5 +78,10 @@ public class FsCleanerRemote {
       throw WorkerException.wrap(e);
     }
     return stats;
+  }
+
+  private static boolean hasFileSuffix(List<String> suffixes, String path) {
+    Optional<String> fileSuffix = suffixes.stream().filter(path::endsWith).findAny();
+    return !fileSuffix.isPresent();
   }
 }
