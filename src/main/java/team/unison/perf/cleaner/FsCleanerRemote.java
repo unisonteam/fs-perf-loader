@@ -9,27 +9,24 @@ package team.unison.perf.cleaner;
 
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
-import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.perf.fswrapper.S3FsWrapper;
 import team.unison.perf.stats.StatisticsDTO;
 import team.unison.remote.WorkerException;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 public class FsCleanerRemote {
-  private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
-
-  public static StatisticsDTO apply(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) {
-    List<FsWrapper> fsWrappers = FsWrapperFactory.get(paths.get(0), conf);
-
-    ExecutorService executorService = Executors.newFixedThreadPool(threads);
-
+  public static StatisticsDTO apply(
+      @Nonnull ExecutorService executorService,
+      @Nonnull Map<Thread, FsWrapper> threadToFsWrapperMap,
+      @Nonnull List<String> paths,
+      @Nonnull List<String> suffixes
+  ) {
     StatisticsDTO stats = new StatisticsDTO();
 
     try {
@@ -37,12 +34,15 @@ public class FsCleanerRemote {
         String bucket = S3FsWrapper.toBucketAndKey(null, path)[0];
         // directories are left after removal of objects - call clean several times to purge all
         for (int i = 0; i < 1000; i++) {
-          List<String> subPaths = randomFsWrapper(fsWrappers).list(null, path);
+          List<String> subPaths = executorService.submit(
+              () -> threadToFsWrapperMap.get(Thread.currentThread()).list(null, path)
+          ).get();
+
           if (subPaths.isEmpty()) {
             break;
           }
 
-          List<Callable<Boolean>> rmCalls = new ArrayList<>();
+          List<CompletableFuture<Boolean>> futures = new ArrayList<>();
           for (String subPath : subPaths) {
             Optional<String> fileSuffix = suffixes.stream().filter(subPath::endsWith).findAny();
 
@@ -50,37 +50,36 @@ public class FsCleanerRemote {
               continue;
             }
 
-            rmCalls.add(() -> PrometheusUtils.runAndRecord(stats, "delete", () -> randomFsWrapper(fsWrappers).delete(bucket, subPath)));
+            futures.add(CompletableFuture.supplyAsync(
+                () -> {
+                  FsWrapper fsWrapper = threadToFsWrapperMap.get(Thread.currentThread());
+                  return PrometheusUtils.runAndRecord(stats, "delete", () -> fsWrapper.delete(bucket, subPath));
+                },
+                executorService));
           }
-          List<Future<Boolean>> futures = executorService.invokeAll(rmCalls);
-          List<Boolean> batchResult = futures.stream().map(f -> {
-            try {
-              return f.get();
-            } catch (Exception e) {
-              throw WorkerException.wrap(e);
-            }
-          }).collect(Collectors.toList());
+          try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+          } catch (Exception e) {
+            throw WorkerException.wrap(e);
+          }
         }
       }
-      executorService.shutdown();
-      executorService.awaitTermination(1, TimeUnit.DAYS);
-    } catch (InterruptedException e) {
+
+      for (String path : paths) {
+        Optional<String> fileSuffix = suffixes.stream().filter(path::endsWith).findAny();
+        if (!fileSuffix.isPresent()) {
+          continue;
+        }
+        executorService.submit(
+            () -> {
+              FsWrapper fsWrapper = threadToFsWrapperMap.get(Thread.currentThread());
+              PrometheusUtils.runAndRecord(stats, "delete", () -> fsWrapper.delete(null, path));
+            }
+        ).get();
+      }
+    } catch (Exception e) {
       throw WorkerException.wrap(e);
     }
-
-    for (String path : paths) {
-      Optional<String> fileSuffix = suffixes.stream().filter(path::endsWith).findAny();
-
-      if (!fileSuffix.isPresent()) {
-        continue;
-      }
-      PrometheusUtils.runAndRecord(stats, "delete", () -> randomFsWrapper(fsWrappers).delete(null, path));
-    }
-
     return stats;
-  }
-
-  private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {
-    return fsWrappers.get(FS_WRAPPER_COUNTER.getAndIncrement() % fsWrappers.size());
   }
 }

@@ -136,7 +136,7 @@ public final class FsSnapshotter implements Runnable {
       log.info("Start snapshot at host {}", genericWorker.getHost());
       Instant before = Instant.now();
       try {
-        stats = genericWorker.getAgent().snapshot(conf, paths, new FsSnapshotterOperationConf(threads, actions));
+        stats = genericWorker.getAgent().snapshot(paths, new FsSnapshotterOperationConf(threads, actions));
       } catch (Exception e) {
         log.warn("Error running load", e);
         throw WorkerException.wrap(e);

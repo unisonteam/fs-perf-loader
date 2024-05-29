@@ -11,20 +11,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
-import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.perf.stats.StatisticsDTO;
 import team.unison.remote.WorkerException;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import java.util.concurrent.*;
 
 public class FsSnapshotterBatchRemote {
   private static final Logger log = LoggerFactory.getLogger(FsSnapshotterBatchRemote.class);
@@ -34,31 +31,31 @@ public class FsSnapshotterBatchRemote {
   private static final String DELETE_SNAPSHOT_OPERATION = "delete_snapshot";
   private static final String RENAME_SNAPSHOT_OPERATION = "rename_snapshot";
 
-  private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
   private static final ConcurrentHashMap<String, Boolean> SNAPSHOT_PATHS = new ConcurrentHashMap<>();
 
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
 
-  public static StatisticsDTO snapshot(Map<String, String> conf, List<String> paths, FsSnapshotterOperationConf opConf) {
+  public static StatisticsDTO snapshot(
+      @Nonnull ExecutorService executorService,
+      @Nonnull Map<Thread, FsWrapper> threadToFsWrapperMap,
+      @Nullable List<String> paths,
+      @Nonnull FsSnapshotterOperationConf opConf
+  ) {
     StatisticsDTO stats = new StatisticsDTO();
     if (paths == null || paths.isEmpty()) {
       return stats;
     }
 
-    ExecutorService executorService = Executors.newFixedThreadPool(opConf.getThreadCount());
-    String randomPath = paths.get(0);
-    List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
-
-    List<Callable<Object>> callables = paths.stream()
-            .map(path -> Executors.callable(
-                    () -> snapshotActions(randomFsWrapper(fsWrappers), path, opConf, stats)
-            )).collect(Collectors.toList());
+    List<CompletableFuture<Void>> futures = new ArrayList<>();
+    for (String path : paths) {
+      futures.add(CompletableFuture.runAsync(
+          () -> snapshotActions(threadToFsWrapperMap.get(Thread.currentThread()), path, opConf, stats), executorService)
+      );
+    }
     try {
-      executorService.invokeAll(callables);
-    } catch (InterruptedException e) {
+      CompletableFuture.allOf(new CompletableFuture[futures.size()]).join();
+    } catch (Exception e) {
       throw WorkerException.wrap(e);
-    } finally {
-      executorService.shutdownNow();
     }
     return stats;
   }
@@ -102,9 +99,5 @@ public class FsSnapshotterBatchRemote {
 
     String newShapshot = snapshotName + "_1";
     PrometheusUtils.runAndRecord(stats, CREATE_SNAPSHOT_OPERATION, () -> fsWrapper.createSnapshot(path, newShapshot));
-  }
-
-  private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {
-    return fsWrappers.get(FS_WRAPPER_COUNTER.getAndIncrement() % fsWrappers.size());
   }
 }

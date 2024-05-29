@@ -92,25 +92,25 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public StatisticsDTO runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command,
+  public StatisticsDTO runCommand(Map<String, Long> batch, Map<String, String> command,
                                   FsLoaderOperationConf opConf) {
     return FsLoaderBatchRemote.runCommand(executorService, threadToFsWrapper, batch, command, opConf);
   }
 
   @Override
-  public StatisticsDTO runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload,
+  public StatisticsDTO runMixedWorkload(Map<String, Long> batch, List<Map<String, String>> workload,
                                         FsLoaderOperationConf opConf) {
     return FsLoaderBatchRemote.runMixedWorkload(executorService, threadToFsWrapper, batch, workload, opConf);
   }
 
   @Override
-  public StatisticsDTO snapshot(Map<String, String> conf, List<String> paths, FsSnapshotterOperationConf opConf) throws IOException {
-    return FsSnapshotterBatchRemote.snapshot(conf, paths, opConf);
+  public StatisticsDTO snapshot(List<String> paths, FsSnapshotterOperationConf opConf) throws IOException {
+    return FsSnapshotterBatchRemote.snapshot(executorService, threadToFsWrapper, paths, opConf);
   }
 
   @Override
-  public StatisticsDTO clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) {
-    return FsCleanerRemote.apply(conf, paths, suffixes, threads);
+  public StatisticsDTO clean(List<String> paths, List<String> suffixes) {
+    return FsCleanerRemote.apply(executorService, threadToFsWrapper, paths, suffixes);
   }
 
   @Override

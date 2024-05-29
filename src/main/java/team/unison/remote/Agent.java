@@ -27,15 +27,15 @@ public interface Agent extends Remote {
 
   void setup(String randomPath, Map<String, String> conf, int threads) throws IOException;
 
-  StatisticsDTO runCommand(Map<String, String> conf, Map<String, Long> arg, Map<String, String> command,
+  StatisticsDTO runCommand(Map<String, Long> arg, Map<String, String> command,
                            FsLoaderOperationConf opConf) throws IOException;
 
-  StatisticsDTO runMixedWorkload(Map<String, String> conf, Map<String, Long> batch, List<Map<String, String>> workload,
+  StatisticsDTO runMixedWorkload(Map<String, Long> batch, List<Map<String, String>> workload,
                                  FsLoaderOperationConf opConf) throws IOException;
 
-  StatisticsDTO snapshot(Map<String, String> conf, List<String> paths, FsSnapshotterOperationConf opConf) throws IOException;
+  StatisticsDTO snapshot(List<String> paths, FsSnapshotterOperationConf opConf) throws IOException;
 
-  StatisticsDTO clean(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) throws IOException;
+  StatisticsDTO clean(List<String> paths, List<String> suffixes) throws IOException;
 
   void init(Properties properties) throws IOException;
 

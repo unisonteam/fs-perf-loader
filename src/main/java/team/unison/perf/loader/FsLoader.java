@@ -297,7 +297,7 @@ public final class FsLoader implements Runnable {
     try {
       log.info("Start mixed workload at host {}", genericWorker.getHost());
       Instant before = Instant.now();
-      loadResult = genericWorker.getAgent().runMixedWorkload(conf, batch, workload,
+      loadResult = genericWorker.getAgent().runMixedWorkload(batch, workload,
           new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), data));
       log.info("End mixed workload at host {}, batch took {}", genericWorker.getHost(), Duration
           .between(before, Instant.now()));
@@ -323,7 +323,7 @@ public final class FsLoader implements Runnable {
       log.info("Start batch for command '{}' at host {}", command.get("operation"), genericWorker.getHost());
       Instant before = Instant.now();
       try {
-        commandResult = genericWorker.getAgent().runCommand(conf, batch, command,
+        commandResult = genericWorker.getAgent().runCommand(batch, command,
             new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), barr));
       } catch (Exception e) {
         log.warn("Error running load", e);
