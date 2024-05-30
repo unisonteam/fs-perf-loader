@@ -15,6 +15,8 @@ import team.unison.remote.GenericWorker;
 import team.unison.remote.GenericWorkerBuilder;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
+import team.unison.transfer.FsWrapperDataForOperation;
+import team.unison.transfer.FsLoaderDataForOperation;
 
 import javax.annotation.Nonnull;
 
@@ -285,8 +287,7 @@ public final class FsLoader implements Runnable {
     try {
       log.info("Start mixed workload at host {}", genericWorker.getHost());
       Instant before = Instant.now();
-      loadResult = genericWorker.getAgent().runMixedWorkload(batch, workload,
-          new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis()));
+      loadResult = genericWorker.getAgent().runMixedWorkload(name, batch, workload);
       log.info("End mixed workload at host {}, batch took {}", genericWorker.getHost(), Duration
           .between(before, Instant.now()));
     } catch (IOException e) {
@@ -310,8 +311,7 @@ public final class FsLoader implements Runnable {
       log.info("Start batch for command '{}' at host {}", command.get("operation"), genericWorker.getHost());
       Instant before = Instant.now();
       try {
-        commandResult = genericWorker.getAgent().runCommand(batch, command,
-            new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis()));
+        commandResult = genericWorker.getAgent().runCommand(name, batch, command);
       } catch (Exception e) {
         log.warn("Error running load", e);
         throw WorkerException.wrap(e);
@@ -376,7 +376,9 @@ public final class FsLoader implements Runnable {
   private @Nonnull GenericWorker initAgent(@Nonnull GenericWorkerBuilder workerBuilder) {
     GenericWorker genericWorker = workerBuilder.get();
     try {
-      genericWorker.getAgent().init(conf, threads, fill);
+      FsWrapperDataForOperation data =
+          new FsLoaderDataForOperation(threads, name, conf, loadDelay.toMillis(), useTmpFile, fill);
+      genericWorker.getAgent().setupAgent(data);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

@@ -13,17 +13,13 @@ import org.slf4j.LoggerFactory;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.cleaner.FsCleanerRemote;
 import team.unison.perf.filetransfer.FileTransferRemote;
-import team.unison.perf.fswrapper.FsWrapper;
-import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.perf.jstack.JstackSaverRemote;
 import team.unison.perf.loader.FsLoaderBatchRemote;
-import team.unison.perf.loader.FsLoaderOperationConf;
 import team.unison.perf.snapshot.FsSnapshotterBatchRemote;
-import team.unison.perf.snapshot.FsSnapshotterOperationConf;
 import team.unison.perf.stats.StatisticsDTO;
+import team.unison.transfer.FsWrapperDataForOperation;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -34,16 +30,17 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.rmi.server.Unreferenced;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static team.unison.remote.Utils.sleep;
 
 class AgentImpl implements Agent, Unreferenced {
   private static final Logger log = LoggerFactory.getLogger(AgentImpl.class);
-  private static final Map<Thread, FsWrapper> threadToFsWrapper = new ConcurrentHashMap<>();
-  private static ExecutorService executorService;
-  private FsLoaderBatchRemote fsLoaderBatchRemote;
+  private static final Map<String, FsWrapperContainer> FS_WRAPPER_CONTAINER_MAP = new ConcurrentHashMap<>();
 
   private AgentImpl() {
   }
@@ -82,38 +79,43 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public void init(@Nonnull Map<String, String> conf, int threads, @Nullable String fillValue) {
-   executorService = Executors.newFixedThreadPool(threads, runnable -> {
-     Thread thread = new Thread(runnable);
-     threadToFsWrapper.computeIfAbsent(thread, t -> FsWrapperFactory.get(conf));
-     return thread;
-   });
-   if (fillValue != null) {
-     fsLoaderBatchRemote = new FsLoaderBatchRemote();
-     fsLoaderBatchRemote.fillData(fillValue);
-   }
+  public void setupAgent(@Nonnull FsWrapperDataForOperation data) {
+    FS_WRAPPER_CONTAINER_MAP.putIfAbsent(data.fsWrapperName, FsWrapperContainerFactory.get(data));
   }
 
   @Override
-  public StatisticsDTO runCommand(Map<String, Long> batch, Map<String, String> command,
-                                  FsLoaderOperationConf opConf) {
-    return fsLoaderBatchRemote.runCommand(executorService, threadToFsWrapper, batch, command, opConf);
+  public StatisticsDTO runCommand(
+      @Nonnull String loaderName,
+      @Nonnull Map<String, Long> batch,
+      @Nonnull Map<String, String> command
+  ) {
+    FsWrapperContainer fsWrapperContainer = FS_WRAPPER_CONTAINER_MAP.get(loaderName);
+    FsLoaderBatchRemote fsLoader = getWrapper(fsWrapperContainer);
+    return fsLoader.runCommand(fsWrapperContainer.executor, batch, command);
   }
 
   @Override
-  public StatisticsDTO runMixedWorkload(Map<String, Long> batch, List<Map<String, String>> workload,
-                                        FsLoaderOperationConf opConf) {
-    return fsLoaderBatchRemote.runMixedWorkload(executorService, threadToFsWrapper, batch, workload, opConf);
+  public StatisticsDTO runMixedWorkload(
+      @Nonnull String loaderName,
+      @Nonnull Map<String, Long> batch,
+      @Nonnull List<Map<String, String>> workload
+  ) {
+    FsWrapperContainer fsWrapperContainer = FS_WRAPPER_CONTAINER_MAP.get(loaderName);
+    FsLoaderBatchRemote fsLoader = getWrapper(fsWrapperContainer);
+    return fsLoader.runMixedWorkload(fsWrapperContainer.executor, batch, workload);
   }
 
   @Override
-  public StatisticsDTO snapshot(List<String> paths, FsSnapshotterOperationConf opConf) throws IOException {
-    return FsSnapshotterBatchRemote.snapshot(executorService, threadToFsWrapper, paths, opConf);
+  public StatisticsDTO snapshot(@Nonnull String snapshotterName, List<String> paths) throws IOException {
+    FsWrapperContainer fsWrapperContainer = FS_WRAPPER_CONTAINER_MAP.get(snapshotterName);
+    FsSnapshotterBatchRemote fsSnapshotter = getWrapper(fsWrapperContainer);
+    return fsSnapshotter.snapshot(fsWrapperContainer.executor, paths);
   }
 
   @Override
-  public StatisticsDTO clean(List<String> paths, List<String> suffixes) {
-    return FsCleanerRemote.apply(executorService, threadToFsWrapper, paths, suffixes);
+  public StatisticsDTO clean(@Nonnull String cleanerName, List<String> paths, List<String> suffixes) {
+    FsWrapperContainer fsWrapperContainer = FS_WRAPPER_CONTAINER_MAP.get(cleanerName);
+    return FsCleanerRemote.apply(fsWrapperContainer.executor, paths, suffixes);
   }
 
   @Override
@@ -127,7 +129,7 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public void init(Properties properties) {
+  public void setupAgent(Properties properties) {
     // init kerberos
     String principal = properties.getProperty("kerberos.principal");
     String keytab = properties.getProperty("kerberos.keytab");
@@ -147,8 +149,11 @@ class AgentImpl implements Agent, Unreferenced {
   public void shutdown() {
     log.info("Agent stopped at {}", new Date());
     PrometheusUtils.clearStatistics(true);
-    log.info("ExecutorService stopped at {}", new Date());
-    executorService.shutdownNow();
+    FS_WRAPPER_CONTAINER_MAP.forEach((k, fsWrapperContainer) -> {
+      log.info("Release resources for fsWrapperContainer {}", k);
+      fsWrapperContainer.executor.shutdownNow();
+    });
+    FS_WRAPPER_CONTAINER_MAP.clear();
     log.info("Shutdown VM {}", new Date());
     // start a separate thread to shut down VM to respond properly to the remote caller
     new Thread(() -> {
@@ -165,5 +170,17 @@ class AgentImpl implements Agent, Unreferenced {
   @Override
   public void unreferenced() {
     shutdown();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T getWrapper(@Nonnull FsWrapperContainer wrapperContainer) {
+    if (wrapperContainer.worker instanceof FsLoaderBatchRemote) {
+      return (T) wrapperContainer.worker;
+    } if (wrapperContainer.worker instanceof FsSnapshotterBatchRemote) {
+      return (T) wrapperContainer.worker;
+    } else {
+      throw new IllegalStateException("Got wrong loader name or this container doesn't have worker " +
+          "(use static functions)!");
+    }
   }
 }

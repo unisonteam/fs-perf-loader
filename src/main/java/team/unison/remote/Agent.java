@@ -7,12 +7,10 @@
 
 package team.unison.remote;
 
-import team.unison.perf.loader.FsLoaderOperationConf;
-import team.unison.perf.snapshot.FsSnapshotterOperationConf;
 import team.unison.perf.stats.StatisticsDTO;
+import team.unison.transfer.FsWrapperDataForOperation;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.rmi.Remote;
 import java.util.List;
@@ -27,19 +25,19 @@ public interface Agent extends Remote {
 
   String info() throws IOException;
 
-  void init(@Nonnull Map<String, String> conf, int threads, @Nullable String fillValue) throws IOException;
+  void setupAgent(@Nonnull FsWrapperDataForOperation workerData) throws IOException;
 
-  StatisticsDTO runCommand(Map<String, Long> arg, Map<String, String> command,
-                           FsLoaderOperationConf opConf) throws IOException;
+  StatisticsDTO runCommand(@Nonnull String loaderName, Map<String, Long> batch, Map<String, String> command)
+      throws IOException;
 
-  StatisticsDTO runMixedWorkload(Map<String, Long> batch, List<Map<String, String>> workload,
-                                 FsLoaderOperationConf opConf) throws IOException;
+  StatisticsDTO runMixedWorkload(@Nonnull String loaderName, Map<String, Long> batch, List<Map<String, String>> workload)
+      throws IOException;
 
-  StatisticsDTO snapshot(List<String> paths, FsSnapshotterOperationConf opConf) throws IOException;
+  StatisticsDTO snapshot(@Nonnull String fsSnapshotterName, List<String> paths) throws IOException;
 
-  StatisticsDTO clean(List<String> paths, List<String> suffixes) throws IOException;
+  StatisticsDTO clean(@Nonnull String fsCleanerName, List<String> paths, List<String> suffixes) throws IOException;
 
-  void init(Properties properties) throws IOException;
+  void setupAgent(Properties properties) throws IOException;
 
   void shutdown() throws IOException;
 

@@ -10,26 +10,41 @@ package team.unison.perf.loader;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.stats.StatisticsDTO;
+import team.unison.remote.FsWrapperCommandExecutor;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
+import team.unison.transfer.FsLoaderDataForOperation;
 
 import javax.annotation.Nonnull;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 public class FsLoaderBatchRemote {
   private static final int MAX_FILE_POOL_SIZE = 1_000_000; // approximate
   private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
-  private final byte[] writableData = new byte[WRITE_DATA_ARRAY_SIZE];
+  private final byte[] writableData;
+  private final int threadCount;
+  private final boolean useTmpFile;
+  private final long loadDelayInMillis;
+
+  public FsLoaderBatchRemote(@Nonnull FsLoaderDataForOperation data) {
+    threadCount = data.threadCount;
+    useTmpFile = data.useTmpFile;
+    loadDelayInMillis = data.loadDelayInMillis;
+    writableData = generateData(data.fill);
+  }
 
   public StatisticsDTO runCommand(
-      @Nonnull ExecutorService executorService,
-      @Nonnull Map<Thread, FsWrapper> threadToFsWrapperMap,
+      @Nonnull FsWrapperCommandExecutor commandExecutor,
       @Nonnull Map<String, Long> batch,
-      @Nonnull Map<String, String> command,
-      @Nonnull FsLoaderOperationConf opConf
+      @Nonnull Map<String, String> command
   ) {
     StatisticsDTO stats = new StatisticsDTO();
     if (batch.isEmpty()) {
@@ -38,19 +53,16 @@ public class FsLoaderBatchRemote {
 
     List<CompletableFuture<Void>> futureList = new ArrayList<>();
     for (Map.Entry<String, Long> entry : batch.entrySet()) {
-      futureList.add(CompletableFuture.runAsync(
-          () -> {
+      futureList.add(commandExecutor.runAsync(
+          (fsWrapper) -> {
             long start = System.nanoTime();
-            FsWrapper fsWrapper = threadToFsWrapperMap.get(Thread.currentThread());
-            boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), writableData, opConf.isUsetmpFile(),
-                command);
+            boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), writableData, useTmpFile, command);
             long elapsed = System.nanoTime() - start;
             PrometheusUtils.record(stats, command.get("operation"), elapsed, success, entry.getValue());
-            if (opConf.getLoadDelayInMillis() > 0) {
-              Utils.sleep(opConf.getLoadDelayInMillis());
+            if (loadDelayInMillis > 0) {
+              Utils.sleep(loadDelayInMillis);
             }
-          },
-          executorService
+          }
       ));
     }
 
@@ -63,11 +75,9 @@ public class FsLoaderBatchRemote {
   }
 
   public StatisticsDTO runMixedWorkload(
-      ExecutorService executorService,
-      Map<Thread, FsWrapper> fsWrapperList,
-      Map<String, Long> batch,
-      List<Map<String, String>> workload,
-      FsLoaderOperationConf opConf
+      @Nonnull FsWrapperCommandExecutor commandExecutor,
+      @Nonnull Map<String, Long> batch,
+      @Nonnull List<Map<String, String>> workload
   ) {
     StatisticsDTO stats = new StatisticsDTO();
     if (batch.isEmpty()) {
@@ -77,16 +87,15 @@ public class FsLoaderBatchRemote {
     AtomicLong pos = new AtomicLong();
     List<String> filePool = Collections.synchronizedList(new ArrayList<>());
 
-    List<Callable<StatisticsDTO>> callables = batch.entrySet().stream()
-            .map(entry -> ((Callable<StatisticsDTO>) () -> {
-              FsWrapper fsWrapper = fsWrapperList.get(Thread.currentThread());
-              return runWorkloadForSingleFile(fsWrapper, entry.getKey(), entry.getValue(), writableData, opConf,
-                  workload, pos, filePool);
-            }
-            )).collect(Collectors.toList());
+    List<CompletableFuture<StatisticsDTO>> futures = new ArrayList<>();
+    for (Map.Entry<String, Long> entry : batch.entrySet()) {
+      futures.add(
+          commandExecutor.supplyAsync((fsWrapper) ->
+              runWorkloadForSingleFile(fsWrapper, entry.getKey(), entry.getValue(), workload, pos, filePool)
+      ));
+    }
 
     try {
-      List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
       List<StatisticsDTO> batchResult = futures.stream().map(f -> {
         try {
           return f.get();
@@ -97,21 +106,17 @@ public class FsLoaderBatchRemote {
       for (StatisticsDTO singleBatchResult : batchResult) {
         stats.add(singleBatchResult);
       }
-    } catch (InterruptedException e) {
+    } catch (Exception e) {
       throw WorkerException.wrap(e);
-    } finally {
-      executorService.shutdownNow();
     }
 
     return stats;
   }
 
-  private static StatisticsDTO runWorkloadForSingleFile(
+  private StatisticsDTO runWorkloadForSingleFile(
       FsWrapper fsWrapper,
       String fileName,
       long fileSize,
-      byte[] writableData,
-      FsLoaderOperationConf opConf,
       List<Map<String, String>> workload,
       AtomicLong seq,
       List<String> filePool
@@ -131,8 +136,8 @@ public class FsLoaderBatchRemote {
       } else if (randomRead) {
         synchronized (filePool) {
           // don't use latest files - files may be deleted before read causing errors
-          if (filePool.size() > opConf.getThreadCount()) {
-            fileName = filePool.get(ThreadLocalRandom.current().nextInt(filePool.size() - opConf.getThreadCount()));
+          if (filePool.size() > threadCount) {
+            fileName = filePool.get(ThreadLocalRandom.current().nextInt(filePool.size() - threadCount));
           }
         }
       }
@@ -141,14 +146,14 @@ public class FsLoaderBatchRemote {
       int timesToRunCommand = baseRunCount + variableRunCount;
       for (int i = 0; i < timesToRunCommand; i++) {
         long start = System.nanoTime();
-        boolean success = runCommand(fsWrapper, fileName, fileSize, writableData, opConf.isUsetmpFile(), command);
+        boolean success = runCommand(fsWrapper, fileName, fileSize, writableData, useTmpFile, command);
         long elapsed = System.nanoTime() - start;
         PrometheusUtils.record(stats, command.get("operationType"), elapsed, success, fileSize);
         if (!success) {
           filePool.remove(fileName);
         }
-        if (opConf.getLoadDelayInMillis() > 0) {
-          Utils.sleep(opConf.getLoadDelayInMillis());
+        if (loadDelayInMillis > 0) {
+          Utils.sleep(loadDelayInMillis);
         }
       }
     }
@@ -174,14 +179,16 @@ public class FsLoaderBatchRemote {
     throw new IllegalArgumentException("command " + op + " is not supported");
   }
 
-  public void fillData(@Nonnull String fill) {
-    long fillChar = ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
+  private static @Nonnull byte[] generateData(@Nonnull String fillValue) {
+    long fillChar = ("random".equalsIgnoreCase(fillValue) ? -1 : Long.parseLong(fillValue));
+    byte[] data = new byte[WRITE_DATA_ARRAY_SIZE];
 
     // 0 - no action - leave array filled with zeroes
     if (fillChar < 0) {
-      ThreadLocalRandom.current().nextBytes(writableData);
+      ThreadLocalRandom.current().nextBytes(data);
     } else if (fillChar > 0) {
-      Arrays.fill(writableData, (byte) fillChar);
+      Arrays.fill(data, (byte) fillChar);
     }
+    return data;
   }
 }

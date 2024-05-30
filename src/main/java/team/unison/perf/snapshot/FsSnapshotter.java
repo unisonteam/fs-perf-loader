@@ -15,7 +15,11 @@ import team.unison.remote.GenericWorker;
 import team.unison.remote.GenericWorkerBuilder;
 import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
+import team.unison.transfer.FsWrapperDataForOperation;
+import team.unison.transfer.FsSnapshotterDataForOperation;
 
+import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -83,7 +87,7 @@ public final class FsSnapshotter implements Runnable {
     }
 
     List<GenericWorker> genericWorkers = genericWorkerBuilders.parallelStream()
-            .map(GenericWorkerBuilder::get)
+            .map(this::initAgent)
             .collect(Collectors.toList());
 
     Runtime.getRuntime().addShutdownHook(new Thread(
@@ -136,7 +140,7 @@ public final class FsSnapshotter implements Runnable {
       log.info("Start snapshot at host {}", genericWorker.getHost());
       Instant before = Instant.now();
       try {
-        stats = genericWorker.getAgent().snapshot(paths, new FsSnapshotterOperationConf(threads, actions));
+        stats = genericWorker.getAgent().snapshot(name, paths);
       } catch (Exception e) {
         log.warn("Error running load", e);
         throw WorkerException.wrap(e);
@@ -150,6 +154,18 @@ public final class FsSnapshotter implements Runnable {
     }
 
     return stats;
+  }
+
+  private @Nonnull GenericWorker initAgent(@Nonnull GenericWorkerBuilder workerBuilder) {
+    GenericWorker genericWorker = workerBuilder.get();
+    try {
+      FsWrapperDataForOperation
+          fsWrapperDataForOperation = new FsSnapshotterDataForOperation(threads, name, conf, actions);
+      genericWorker.getAgent().setupAgent(fsWrapperDataForOperation);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    return genericWorker;
   }
 
   @Override

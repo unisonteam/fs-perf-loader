@@ -14,6 +14,8 @@ import team.unison.perf.stats.StatisticsDTO;
 import team.unison.remote.GenericWorker;
 import team.unison.remote.GenericWorkerBuilder;
 import team.unison.remote.WorkerException;
+import team.unison.transfer.FsWrapperDataForOperation;
+import team.unison.transfer.FsCleanerDataForOperation;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -61,8 +63,9 @@ public final class FsCleaner implements Runnable {
     Instant before = Instant.now();
     log.info("Start cleaner {} at host {}", name, genericWorker.getHost());
     try {
-      genericWorker.getAgent().init(conf, threads, null);
-      results = genericWorker.getAgent().clean(paths, suffixes);
+      FsWrapperDataForOperation data = new FsCleanerDataForOperation(threads, name, conf);
+      genericWorker.getAgent().setupAgent(data);
+      results = genericWorker.getAgent().clean(name, paths, suffixes);
     } catch (IOException e) {
       throw WorkerException.wrap(e);
     }

@@ -76,7 +76,7 @@ public class GenericWorkerBuilder implements Serializable {
         try {
           agent = (Agent) Naming.lookup(connectionLocation);
           agent.info(); // ping
-          agent.init(PerfLoaderUtils.getGlobalProperties());
+          agent.setupAgent(PerfLoaderUtils.getGlobalProperties());
 
           log.info("Connection to " + connectionLocation + " was successful");
           break;
