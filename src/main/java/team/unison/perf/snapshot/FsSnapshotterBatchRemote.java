@@ -47,11 +47,13 @@ public class FsSnapshotterBatchRemote {
 
     ExecutorService executorService = Executors.newFixedThreadPool(opConf.getThreadCount());
     String randomPath = paths.get(0);
-    List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
 
     List<Callable<Object>> callables = paths.stream()
             .map(path -> Executors.callable(
-                    () -> snapshotActions(randomFsWrapper(fsWrappers), path, opConf, stats)
+                    () -> {
+                      List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
+                      snapshotActions(randomFsWrapper(fsWrappers), path, opConf, stats);
+                    }
             )).collect(Collectors.toList());
     try {
       executorService.invokeAll(callables);

@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class FsWrapperFactory {
   private static final Map<Map<String, String>, FsWrapper> CACHE = new ConcurrentHashMap<>();
+  private static final Map<Thread, FsWrapper> HDFS_FS_WRAPPER_MAP = new ConcurrentHashMap<>();
 
   private FsWrapperFactory() {
   }
@@ -31,19 +32,13 @@ public class FsWrapperFactory {
       List<FsWrapper> ret = new ArrayList<>();
       for (String s3uri : s3Uris) {
         nonNullConf.put("s3.uri", s3uri);
-        ret.add(CACHE.computeIfAbsent(nonNullConf, map -> newInstance(root, map)));
+        ret.add(CACHE.computeIfAbsent(nonNullConf, S3FsWrapper::new));
       }
       return ret;
     } else {
-      return Collections.singletonList(CACHE.computeIfAbsent(nonNullConf, map -> newInstance(root, map)));
-    }
-  }
-
-  private static FsWrapper newInstance(String path, Map<String, String> conf) {
-    if (conf.containsKey("s3.uri")) {
-      return new S3FsWrapper(conf);
-    } else {
-      return new HdfsFsWrapper(path, conf);
+      return Collections.singletonList(
+          HDFS_FS_WRAPPER_MAP.computeIfAbsent(Thread.currentThread(), k -> new HdfsFsWrapper(root, nonNullConf))
+      );
     }
   }
 }

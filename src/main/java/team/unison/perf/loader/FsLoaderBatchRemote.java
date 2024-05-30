@@ -36,12 +36,12 @@ public class FsLoaderBatchRemote {
 
     ExecutorService executorService = Executors.newFixedThreadPool(opConf.getThreadCount());
     String randomPath = batch.keySet().stream().findFirst().get();
-    List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
 
     List<Callable<Object>> callables = batch.entrySet().stream()
             .map(entry -> Executors.callable(
                     () -> {
                       long start = System.nanoTime();
+                      List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
                       boolean success = runCommand(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
                               command);
                       long elapsed = System.nanoTime() - start;
@@ -74,12 +74,14 @@ public class FsLoaderBatchRemote {
     AtomicLong pos = new AtomicLong();
     ExecutorService executorService = Executors.newFixedThreadPool(opConf.getThreadCount());
     String randomPath = batch.keySet().stream().findFirst().get();
-    List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
     List<String> filePool = Collections.synchronizedList(new ArrayList<>());
 
     List<Callable<StatisticsDTO>> callables = batch.entrySet().stream()
-            .map(entry -> ((Callable<StatisticsDTO>) () ->
-                    runWorkloadForSingleFile(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf, workload, pos, filePool)
+            .map(entry -> ((Callable<StatisticsDTO>) () -> {
+              List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
+              return runWorkloadForSingleFile(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr,
+                  opConf, workload, pos, filePool);
+            }
             )).collect(Collectors.toList());
 
     try {
