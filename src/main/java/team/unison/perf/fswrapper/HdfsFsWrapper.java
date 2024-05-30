@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import team.unison.remote.WorkerException;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -40,12 +41,12 @@ class HdfsFsWrapper implements FsWrapper {
       disableFileSystemCache(uri, conf);
       fs = FileSystem.get(uri, conf);
       log.info("Created HDFS wrapper for the path {} with following configuration: ", path);
-//      fs.getConf().forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
+      fs.getConf().forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
 
       if (path.startsWith("ofs://")) {
         log.info("Ozone configuration for path {}: ", path);
         OzoneConfiguration ozConf = OzoneConfiguration.of(fs.getConf());
-//        ozConf.forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
+        ozConf.forEach(e -> log.info("{} : {}", e.getKey(), e.getValue()));
 
         log.info("Value of configuration property for Ozone transport: {}",
                 ozConf.get(OZONE_OM_TRANSPORT_CLASS, OZONE_OM_TRANSPORT_CLASS_DEFAULT));
@@ -70,7 +71,7 @@ class HdfsFsWrapper implements FsWrapper {
     }
   }
 
-  private static void disableFileSystemCache(URI uri, Configuration conf) throws URISyntaxException {
+  private static void disableFileSystemCache(@Nonnull URI uri, @Nonnull Configuration conf) throws URISyntaxException {
     String scheme = uri.getScheme();
     if (scheme != null) {
       String disableCacheName = String.format("fs.%s.impl.disable.cache", scheme);
