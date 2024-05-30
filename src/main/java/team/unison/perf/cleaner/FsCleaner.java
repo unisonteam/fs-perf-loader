@@ -61,7 +61,7 @@ public final class FsCleaner implements Runnable {
     Instant before = Instant.now();
     log.info("Start cleaner {} at host {}", name, genericWorker.getHost());
     try {
-      genericWorker.getAgent().init(conf, threads);
+      genericWorker.getAgent().init(conf, threads, null);
       results = genericWorker.getAgent().clean(paths, suffixes);
     } catch (IOException e) {
       throw WorkerException.wrap(e);

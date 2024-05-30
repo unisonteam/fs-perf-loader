@@ -23,6 +23,7 @@ import team.unison.perf.snapshot.FsSnapshotterOperationConf;
 import team.unison.perf.stats.StatisticsDTO;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -42,6 +43,7 @@ class AgentImpl implements Agent, Unreferenced {
   private static final Logger log = LoggerFactory.getLogger(AgentImpl.class);
   private static final Map<Thread, FsWrapper> threadToFsWrapper = new ConcurrentHashMap<>();
   private static ExecutorService executorService;
+  private FsLoaderBatchRemote fsLoaderBatchRemote;
 
   private AgentImpl() {
   }
@@ -80,24 +82,28 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
-  public void init(@Nonnull Map<String, String> conf, int threads) {
+  public void init(@Nonnull Map<String, String> conf, int threads, @Nullable String fillValue) {
    executorService = Executors.newFixedThreadPool(threads, runnable -> {
      Thread thread = new Thread(runnable);
      threadToFsWrapper.computeIfAbsent(thread, t -> FsWrapperFactory.get(conf));
      return thread;
    });
+   if (fillValue != null) {
+     fsLoaderBatchRemote = new FsLoaderBatchRemote();
+     fsLoaderBatchRemote.fillData(fillValue);
+   }
   }
 
   @Override
   public StatisticsDTO runCommand(Map<String, Long> batch, Map<String, String> command,
                                   FsLoaderOperationConf opConf) {
-    return FsLoaderBatchRemote.runCommand(executorService, threadToFsWrapper, batch, command, opConf);
+    return fsLoaderBatchRemote.runCommand(executorService, threadToFsWrapper, batch, command, opConf);
   }
 
   @Override
   public StatisticsDTO runMixedWorkload(Map<String, Long> batch, List<Map<String, String>> workload,
                                         FsLoaderOperationConf opConf) {
-    return FsLoaderBatchRemote.runMixedWorkload(executorService, threadToFsWrapper, batch, workload, opConf);
+    return fsLoaderBatchRemote.runMixedWorkload(executorService, threadToFsWrapper, batch, workload, opConf);
   }
 
   @Override

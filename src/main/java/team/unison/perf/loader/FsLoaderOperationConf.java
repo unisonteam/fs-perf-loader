@@ -13,13 +13,11 @@ public class FsLoaderOperationConf implements Serializable {
   private final int threadCount;
   private final boolean usetmpFile;
   private final long loadDelayInMillis;
-  private final byte[] data;
 
-  public FsLoaderOperationConf(int threadCount, boolean usetmpFile, long loadDelayInMillis, byte[] data) {
+  public FsLoaderOperationConf(int threadCount, boolean usetmpFile, long loadDelayInMillis) {
     this.threadCount = threadCount;
     this.usetmpFile = usetmpFile;
     this.loadDelayInMillis = loadDelayInMillis;
-    this.data = data;
   }
 
   public int getThreadCount() {
@@ -32,9 +30,5 @@ public class FsLoaderOperationConf implements Serializable {
 
   public long getLoadDelayInMillis() {
     return loadDelayInMillis;
-  }
-
-  public byte[] getData() {
-    return data;
   }
 }

@@ -31,7 +31,6 @@ import java.util.stream.IntStream;
 
 public final class FsLoader implements Runnable {
   private static final Logger log = LoggerFactory.getLogger(FsLoader.class);
-  private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
 
   /**
    * loader may fill paths one by one - one batch - one path (type='window') or
@@ -199,15 +198,13 @@ public final class FsLoader implements Runnable {
               .map(this::initAgent)
               .collect(Collectors.toList());
 
-      byte[] writableData = getData();
-
       for (int i = 0; i < count; i++) {
         if (i != 0) {
           log.info("Waiting {} between loads", period);
           Utils.sleep(period.toMillis());
         }
         log.info("Start load {}{}", name, (count == 1) ? "" : ": " + (i + 1));
-        runSingle(genericWorkers, writableData);
+        runSingle(genericWorkers);
         printSummary();
       }
     } catch (Exception e) {
@@ -216,7 +213,7 @@ public final class FsLoader implements Runnable {
     log.info("Load {} ended", name);
   }
 
-  private void runSingle(List<GenericWorker> genericWorkers, byte[] writableData) {
+  private void runSingle(List<GenericWorker> genericWorkers) {
     ExecutorService executorService = Executors.newFixedThreadPool(genericWorkers.size());
     List<GenericWorker> workersCopy = new ArrayList<>(genericWorkers);
     loadResults.clear();
@@ -226,7 +223,7 @@ public final class FsLoader implements Runnable {
         if (workload.get(0).containsKey("operationType")) { // mixed workload
           Instant before = Instant.now();
           List<Callable<StatisticsDTO>> callables = filesInBatches.stream()
-                  .map(batch -> ((Callable<StatisticsDTO>) () -> runMixedWorkload(workersCopy, batch, writableData)))
+                  .map(batch -> ((Callable<StatisticsDTO>) () -> runMixedWorkload(workersCopy, batch)))
                   .collect(Collectors.toList());
           List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
           List<StatisticsDTO> commandResults = futures.stream().map(f -> {
@@ -243,7 +240,7 @@ public final class FsLoader implements Runnable {
           for (Map<String, String> command : workload) {
             Instant before = Instant.now();
             List<Callable<StatisticsDTO>> callables = filesInBatches.stream()
-                    .map(batch -> ((Callable<StatisticsDTO>) () -> runCommand(workersCopy, command, batch, writableData)))
+                    .map(batch -> ((Callable<StatisticsDTO>) () -> runCommand(workersCopy, command, batch)))
                     .collect(Collectors.toList());
             List<Future<StatisticsDTO>> futures = executorService.invokeAll(callables);
             List<StatisticsDTO> commandResults = futures.stream().map(f -> {
@@ -279,7 +276,7 @@ public final class FsLoader implements Runnable {
     }
   }
 
-  private StatisticsDTO runMixedWorkload(List<GenericWorker> workersCopy, Map<String, Long> batch, byte[] writableData) {
+  private StatisticsDTO runMixedWorkload(List<GenericWorker> workersCopy, Map<String, Long> batch) {
     GenericWorker genericWorker;
     StatisticsDTO loadResult;
     synchronized (workersCopy) {
@@ -289,7 +286,7 @@ public final class FsLoader implements Runnable {
       log.info("Start mixed workload at host {}", genericWorker.getHost());
       Instant before = Instant.now();
       loadResult = genericWorker.getAgent().runMixedWorkload(batch, workload,
-          new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), writableData));
+          new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis()));
       log.info("End mixed workload at host {}, batch took {}", genericWorker.getHost(), Duration
           .between(before, Instant.now()));
     } catch (IOException e) {
@@ -303,8 +300,7 @@ public final class FsLoader implements Runnable {
     return loadResult;
   }
 
-  private StatisticsDTO runCommand(List<GenericWorker> workersCopy, Map<String, String> command, Map<String, Long> batch,
-                                   byte[] writableData) {
+  private StatisticsDTO runCommand(List<GenericWorker> workersCopy, Map<String, String> command, Map<String, Long> batch) {
     GenericWorker genericWorker;
     StatisticsDTO commandResult;
     synchronized (workersCopy) {
@@ -315,7 +311,7 @@ public final class FsLoader implements Runnable {
       Instant before = Instant.now();
       try {
         commandResult = genericWorker.getAgent().runCommand(batch, command,
-            new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), writableData));
+            new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis()));
       } catch (Exception e) {
         log.warn("Error running load", e);
         throw WorkerException.wrap(e);
@@ -380,25 +376,11 @@ public final class FsLoader implements Runnable {
   private @Nonnull GenericWorker initAgent(@Nonnull GenericWorkerBuilder workerBuilder) {
     GenericWorker genericWorker = workerBuilder.get();
     try {
-      genericWorker.getAgent().init(conf, threads);
+      genericWorker.getAgent().init(conf, threads, fill);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
     return genericWorker;
-  }
-
-  private byte[] getData() {
-    long fillChar = ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
-    byte[] barr = new byte[WRITE_DATA_ARRAY_SIZE];
-
-    // 0 - no action - leave array filled with zeroes
-    if (fillChar < 0) {
-      ThreadLocalRandom.current().nextBytes(barr);
-    } else if (fillChar > 0) {
-      Arrays.fill(barr, (byte) fillChar);
-    }
-
-    return barr;
   }
 
   // Get root ("ofs:://om3") from paths ("ofs://om3/myvolume/mybucket/test{1..3}")

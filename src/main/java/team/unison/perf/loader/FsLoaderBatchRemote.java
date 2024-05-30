@@ -14,7 +14,6 @@ import team.unison.remote.Utils;
 import team.unison.remote.WorkerException;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -22,16 +21,18 @@ import java.util.stream.Collectors;
 
 public class FsLoaderBatchRemote {
   private static final int MAX_FILE_POOL_SIZE = 1_000_000; // approximate
+  private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
+  private final byte[] writableData = new byte[WRITE_DATA_ARRAY_SIZE];
 
-  public static StatisticsDTO runCommand(
+  public StatisticsDTO runCommand(
       @Nonnull ExecutorService executorService,
       @Nonnull Map<Thread, FsWrapper> threadToFsWrapperMap,
-      @Nullable Map<String, Long> batch,
+      @Nonnull Map<String, Long> batch,
       @Nonnull Map<String, String> command,
       @Nonnull FsLoaderOperationConf opConf
   ) {
     StatisticsDTO stats = new StatisticsDTO();
-    if (batch == null || batch.isEmpty()) {
+    if (batch.isEmpty()) {
       return stats;
     }
 
@@ -41,7 +42,7 @@ public class FsLoaderBatchRemote {
           () -> {
             long start = System.nanoTime();
             FsWrapper fsWrapper = threadToFsWrapperMap.get(Thread.currentThread());
-            boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), opConf.getData(), opConf.isUsetmpFile(),
+            boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), writableData, opConf.isUsetmpFile(),
                 command);
             long elapsed = System.nanoTime() - start;
             PrometheusUtils.record(stats, command.get("operation"), elapsed, success, entry.getValue());
@@ -61,7 +62,7 @@ public class FsLoaderBatchRemote {
     return stats;
   }
 
-  public static StatisticsDTO runMixedWorkload(
+  public StatisticsDTO runMixedWorkload(
       ExecutorService executorService,
       Map<Thread, FsWrapper> fsWrapperList,
       Map<String, Long> batch,
@@ -79,7 +80,7 @@ public class FsLoaderBatchRemote {
     List<Callable<StatisticsDTO>> callables = batch.entrySet().stream()
             .map(entry -> ((Callable<StatisticsDTO>) () -> {
               FsWrapper fsWrapper = fsWrapperList.get(Thread.currentThread());
-              return runWorkloadForSingleFile(fsWrapper, entry.getKey(), entry.getValue(), opConf.getData(), opConf,
+              return runWorkloadForSingleFile(fsWrapper, entry.getKey(), entry.getValue(), writableData, opConf,
                   workload, pos, filePool);
             }
             )).collect(Collectors.toList());
@@ -171,5 +172,16 @@ public class FsLoaderBatchRemote {
       return fsWrapper.delete(command.get("bucket"), path);
     }
     throw new IllegalArgumentException("command " + op + " is not supported");
+  }
+
+  public void fillData(@Nonnull String fill) {
+    long fillChar = ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
+
+    // 0 - no action - leave array filled with zeroes
+    if (fillChar < 0) {
+      ThreadLocalRandom.current().nextBytes(writableData);
+    } else if (fillChar > 0) {
+      Arrays.fill(writableData, (byte) fillChar);
+    }
   }
 }
