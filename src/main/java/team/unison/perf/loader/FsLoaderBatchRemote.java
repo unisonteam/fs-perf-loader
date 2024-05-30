@@ -16,13 +16,11 @@ import team.unison.remote.WorkerException;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 public class FsLoaderBatchRemote {
   private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
-  private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
   private static final int MAX_FILE_POOL_SIZE = 1_000_000; // approximate
 
   public static StatisticsDTO runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command,
@@ -41,8 +39,8 @@ public class FsLoaderBatchRemote {
             .map(entry -> Executors.callable(
                     () -> {
                       long start = System.nanoTime();
-                      List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
-                      boolean success = runCommand(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
+                      FsWrapper fsWrapper = FsWrapperFactory.get(randomPath, conf);
+                      boolean success = runCommand(fsWrapper, entry.getKey(), entry.getValue(), barr, opConf.isUsetmpFile(),
                               command);
                       long elapsed = System.nanoTime() - start;
                       PrometheusUtils.record(stats, command.get("operation"), elapsed, success, entry.getValue());
@@ -78,8 +76,8 @@ public class FsLoaderBatchRemote {
 
     List<Callable<StatisticsDTO>> callables = batch.entrySet().stream()
             .map(entry -> ((Callable<StatisticsDTO>) () -> {
-              List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
-              return runWorkloadForSingleFile(randomFsWrapper(fsWrappers), entry.getKey(), entry.getValue(), barr,
+              FsWrapper fsWrapper = FsWrapperFactory.get(randomPath, conf);
+              return runWorkloadForSingleFile(fsWrapper, entry.getKey(), entry.getValue(), barr,
                   opConf, workload, pos, filePool);
             }
             )).collect(Collectors.toList());
@@ -177,9 +175,5 @@ public class FsLoaderBatchRemote {
       return fsWrapper.delete(command.get("bucket"), path);
     }
     throw new IllegalArgumentException("command " + op + " is not supported");
-  }
-
-  private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {
-    return fsWrappers.get(FS_WRAPPER_COUNTER.getAndIncrement() % fsWrappers.size());
   }
 }

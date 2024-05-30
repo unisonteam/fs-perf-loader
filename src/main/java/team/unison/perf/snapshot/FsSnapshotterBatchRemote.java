@@ -23,7 +23,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class FsSnapshotterBatchRemote {
@@ -34,7 +33,6 @@ public class FsSnapshotterBatchRemote {
   private static final String DELETE_SNAPSHOT_OPERATION = "delete_snapshot";
   private static final String RENAME_SNAPSHOT_OPERATION = "rename_snapshot";
 
-  private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
   private static final ConcurrentHashMap<String, Boolean> SNAPSHOT_PATHS = new ConcurrentHashMap<>();
 
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
@@ -51,8 +49,8 @@ public class FsSnapshotterBatchRemote {
     List<Callable<Object>> callables = paths.stream()
             .map(path -> Executors.callable(
                     () -> {
-                      List<FsWrapper> fsWrappers = FsWrapperFactory.get(randomPath, conf);
-                      snapshotActions(randomFsWrapper(fsWrappers), path, opConf, stats);
+                      FsWrapper fsWrappers = FsWrapperFactory.get(randomPath, conf);
+                      snapshotActions(fsWrappers, path, opConf, stats);
                     }
             )).collect(Collectors.toList());
     try {
@@ -104,9 +102,5 @@ public class FsSnapshotterBatchRemote {
 
     String newShapshot = snapshotName + "_1";
     PrometheusUtils.runAndRecord(stats, CREATE_SNAPSHOT_OPERATION, () -> fsWrapper.createSnapshot(path, newShapshot));
-  }
-
-  private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {
-    return fsWrappers.get(FS_WRAPPER_COUNTER.getAndIncrement() % fsWrappers.size());
   }
 }

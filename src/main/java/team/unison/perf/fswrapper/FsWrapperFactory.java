@@ -11,15 +11,18 @@ import team.unison.perf.PerfLoaderUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class FsWrapperFactory {
-  private static final Map<Map<String, String>, FsWrapper> CACHE = new ConcurrentHashMap<>();
+  private static final Map<Map<String, String>, FsWrapper> S3_FS_CACHE = new ConcurrentHashMap<>();
   private static final Map<Thread, FsWrapper> HDFS_FS_WRAPPER_MAP = new ConcurrentHashMap<>();
+
+  private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
 
   private FsWrapperFactory() {
   }
 
-  public static List<FsWrapper> get(String path, Map<String, String> conf) {
+  public static FsWrapper get(String path, Map<String, String> conf) {
     Map<String, String> nonNullConf = new HashMap<>();
     if (conf != null) {
       nonNullConf.putAll(conf);
@@ -32,13 +35,15 @@ public class FsWrapperFactory {
       List<FsWrapper> ret = new ArrayList<>();
       for (String s3uri : s3Uris) {
         nonNullConf.put("s3.uri", s3uri);
-        ret.add(CACHE.computeIfAbsent(nonNullConf, S3FsWrapper::new));
+        ret.add(S3_FS_CACHE.computeIfAbsent(nonNullConf, S3FsWrapper::new));
       }
-      return ret;
+      return randomFsWrapper(ret);
     } else {
-      return Collections.singletonList(
-          HDFS_FS_WRAPPER_MAP.computeIfAbsent(Thread.currentThread(), k -> new HdfsFsWrapper(root, nonNullConf))
-      );
+      return HDFS_FS_WRAPPER_MAP.computeIfAbsent(Thread.currentThread(), k -> new HdfsFsWrapper(root, nonNullConf));
     }
+  }
+
+  private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {
+    return fsWrappers.get(FS_WRAPPER_COUNTER.getAndIncrement() % fsWrappers.size());
   }
 }

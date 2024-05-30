@@ -8,7 +8,6 @@
 package team.unison.perf.cleaner;
 
 import team.unison.perf.PrometheusUtils;
-import team.unison.perf.fswrapper.FsWrapper;
 import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.perf.fswrapper.S3FsWrapper;
 import team.unison.perf.stats.StatisticsDTO;
@@ -19,15 +18,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class FsCleanerRemote {
-  private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
 
   public static StatisticsDTO apply(Map<String, String> conf, List<String> paths, List<String> suffixes, int threads) {
-    List<FsWrapper> fsWrappers = FsWrapperFactory.get(paths.get(0), conf);
-
     ExecutorService executorService = Executors.newFixedThreadPool(threads);
 
     StatisticsDTO stats = new StatisticsDTO();
@@ -37,7 +32,7 @@ public class FsCleanerRemote {
         String bucket = S3FsWrapper.toBucketAndKey(null, path)[0];
         // directories are left after removal of objects - call clean several times to purge all
         for (int i = 0; i < 1000; i++) {
-          List<String> subPaths = randomFsWrapper(fsWrappers).list(null, path);
+          List<String> subPaths = FsWrapperFactory.get(paths.get(0), conf).list(null, path);
           if (subPaths.isEmpty()) {
             break;
           }
@@ -50,7 +45,9 @@ public class FsCleanerRemote {
               continue;
             }
 
-            rmCalls.add(() -> PrometheusUtils.runAndRecord(stats, "delete", () -> randomFsWrapper(fsWrappers).delete(bucket, subPath)));
+            rmCalls.add(() ->
+                PrometheusUtils.runAndRecord(stats, "delete",
+                    () -> FsWrapperFactory.get(paths.get(0), conf).delete(bucket, subPath)));
           }
           List<Future<Boolean>> futures = executorService.invokeAll(rmCalls);
           List<Boolean> batchResult = futures.stream().map(f -> {
@@ -74,13 +71,10 @@ public class FsCleanerRemote {
       if (!fileSuffix.isPresent()) {
         continue;
       }
-      PrometheusUtils.runAndRecord(stats, "delete", () -> randomFsWrapper(fsWrappers).delete(null, path));
+      PrometheusUtils.runAndRecord(stats, "delete",
+          () -> FsWrapperFactory.get(paths.get(0), conf).delete(null, path));
     }
 
     return stats;
-  }
-
-  private static FsWrapper randomFsWrapper(List<FsWrapper> fsWrappers) {
-    return fsWrappers.get(FS_WRAPPER_COUNTER.getAndIncrement() % fsWrappers.size());
   }
 }
