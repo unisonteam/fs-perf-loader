@@ -34,13 +34,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static team.unison.remote.Utils.sleep;
 
 class AgentImpl implements Agent, Unreferenced {
   private static final Logger log = LoggerFactory.getLogger(AgentImpl.class);
-  private static final Map<String, FsWrapperContainer> FS_WRAPPER_CONTAINER_MAP = new ConcurrentHashMap<>();
 
   private AgentImpl() {
   }
@@ -80,7 +78,7 @@ class AgentImpl implements Agent, Unreferenced {
 
   @Override
   public void setupAgent(@Nonnull FsWrapperDataForOperation data) {
-    FS_WRAPPER_CONTAINER_MAP.putIfAbsent(data.fsWrapperName, FsWrapperContainerFactory.get(data));
+    FsWrapperContainer.createWrapperByName(data);
   }
 
   @Override
@@ -89,9 +87,8 @@ class AgentImpl implements Agent, Unreferenced {
       @Nonnull Map<String, Long> batch,
       @Nonnull Map<String, String> command
   ) {
-    FsWrapperContainer fsWrapperContainer = FS_WRAPPER_CONTAINER_MAP.get(loaderName);
-    FsLoaderBatchRemote fsLoader = getWrapper(fsWrapperContainer);
-    return fsLoader.runCommand(fsWrapperContainer.executor, batch, command);
+    FsLoaderBatchRemote fsLoader = FsWrapperContainer.getWrapper(loaderName);
+    return fsLoader.runCommand(batch, command);
   }
 
   @Override
@@ -100,22 +97,20 @@ class AgentImpl implements Agent, Unreferenced {
       @Nonnull Map<String, Long> batch,
       @Nonnull List<Map<String, String>> workload
   ) {
-    FsWrapperContainer fsWrapperContainer = FS_WRAPPER_CONTAINER_MAP.get(loaderName);
-    FsLoaderBatchRemote fsLoader = getWrapper(fsWrapperContainer);
-    return fsLoader.runMixedWorkload(fsWrapperContainer.executor, batch, workload);
+    FsLoaderBatchRemote fsLoader = FsWrapperContainer.getWrapper(loaderName);
+    return fsLoader.runMixedWorkload(batch, workload);
   }
 
   @Override
   public StatisticsDTO snapshot(@Nonnull String snapshotterName, List<String> paths) throws IOException {
-    FsWrapperContainer fsWrapperContainer = FS_WRAPPER_CONTAINER_MAP.get(snapshotterName);
-    FsSnapshotterBatchRemote fsSnapshotter = getWrapper(fsWrapperContainer);
-    return fsSnapshotter.snapshot(fsWrapperContainer.executor, paths);
+    FsSnapshotterBatchRemote fsSnapshotter = FsWrapperContainer.getWrapper(snapshotterName);
+    return fsSnapshotter.snapshot(paths);
   }
 
   @Override
   public StatisticsDTO clean(@Nonnull String cleanerName, List<String> paths, List<String> suffixes) {
-    FsWrapperContainer fsWrapperContainer = FS_WRAPPER_CONTAINER_MAP.get(cleanerName);
-    return FsCleanerRemote.apply(fsWrapperContainer.executor, paths, suffixes);
+    FsCleanerRemote fsRemoteWorker = FsWrapperContainer.getWrapper(cleanerName);
+    return fsRemoteWorker.apply(paths, suffixes);
   }
 
   @Override
@@ -149,11 +144,7 @@ class AgentImpl implements Agent, Unreferenced {
   public void shutdown() {
     log.info("Agent stopped at {}", new Date());
     PrometheusUtils.clearStatistics(true);
-    FS_WRAPPER_CONTAINER_MAP.forEach((k, fsWrapperContainer) -> {
-      log.info("Release resources for fsWrapperContainer {}", k);
-      fsWrapperContainer.executor.shutdownNow();
-    });
-    FS_WRAPPER_CONTAINER_MAP.clear();
+    FsWrapperContainer.clearResources();
     log.info("Shutdown VM {}", new Date());
     // start a separate thread to shut down VM to respond properly to the remote caller
     new Thread(() -> {
@@ -170,17 +161,5 @@ class AgentImpl implements Agent, Unreferenced {
   @Override
   public void unreferenced() {
     shutdown();
-  }
-
-  @SuppressWarnings("unchecked")
-  private static <T> T getWrapper(@Nonnull FsWrapperContainer wrapperContainer) {
-    if (wrapperContainer.worker instanceof FsLoaderBatchRemote) {
-      return (T) wrapperContainer.worker;
-    } if (wrapperContainer.worker instanceof FsSnapshotterBatchRemote) {
-      return (T) wrapperContainer.worker;
-    } else {
-      throw new IllegalStateException("Got wrong loader name or this container doesn't have worker " +
-          "(use static functions)!");
-    }
   }
 }

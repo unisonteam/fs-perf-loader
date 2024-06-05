@@ -7,11 +7,14 @@
 
 package team.unison.perf.cleaner;
 
+import team.unison.perf.FsRemoteWrapper;
 import team.unison.perf.PrometheusUtils;
+import team.unison.perf.fswrapper.FsWrapper;
+import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.perf.fswrapper.S3FsWrapper;
 import team.unison.perf.stats.StatisticsDTO;
-import team.unison.remote.FsWrapperCommandExecutor;
 import team.unison.remote.WorkerException;
+import team.unison.transfer.FsCleanerDataForOperation;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -19,20 +22,24 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-public class FsCleanerRemote {
-  public static StatisticsDTO apply(
-      @Nonnull FsWrapperCommandExecutor executor,
-      @Nonnull List<String> paths,
-      @Nonnull List<String> suffixes
-  ) {
+public class FsCleanerRemote extends FsRemoteWrapper {
+  private final FsCleanerDataForOperation data;
+
+  public FsCleanerRemote(@Nonnull FsCleanerDataForOperation data) {
+    super(data.threadCount);
+    this.data = data;
+  }
+
+  public StatisticsDTO apply(@Nonnull List<String> paths, @Nonnull List<String> suffixes) {
     StatisticsDTO stats = new StatisticsDTO();
+    FsWrapper fsWrapper = FsWrapperFactory.get(data.conf);
 
     try {
       for (String path : paths) {
         String bucket = S3FsWrapper.toBucketAndKey(null, path)[0];
         // directories are left after removal of objects - call clean several times to purge all
         for (int i = 0; i < 1000; i++) {
-          List<String> subPaths = executor.submitAndGet((fsWrapper) -> fsWrapper.list(null, path));
+          List<String> subPaths = fsWrapper.list(null, path);
 
           if (subPaths.isEmpty()) {
             break;
@@ -44,10 +51,10 @@ public class FsCleanerRemote {
               continue;
             }
 
-            futures.add(executor.runAsync(
-                (fsWrapper) ->
-                    PrometheusUtils.runAndRecord(stats, "delete", () -> fsWrapper.delete(bucket, subPath))
-            ));
+            futures.add(CompletableFuture.runAsync(() -> {
+              FsWrapper currfsWrapper = FsWrapperFactory.get(data.conf);
+              PrometheusUtils.runAndRecord(stats, "delete", () -> currfsWrapper.delete(bucket, subPath));
+            }, executor));
           }
           try {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -61,10 +68,8 @@ public class FsCleanerRemote {
         if (!hasFileSuffix(suffixes, path)) {
           continue;
         }
-        executor.submitAndGet(
-            (fsWrapper) ->
-                PrometheusUtils.runAndRecord(stats, "delete", () -> fsWrapper.delete(null, path))
-        );
+
+        PrometheusUtils.runAndRecord(stats, "delete", () -> fsWrapper.delete(null, path));
       }
     } catch (Exception e) {
       throw WorkerException.wrap(e);

@@ -9,10 +9,11 @@ package team.unison.perf.snapshot;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import team.unison.perf.FsRemoteWrapper;
 import team.unison.perf.PrometheusUtils;
 import team.unison.perf.fswrapper.FsWrapper;
+import team.unison.perf.fswrapper.FsWrapperFactory;
 import team.unison.perf.stats.StatisticsDTO;
-import team.unison.remote.FsWrapperCommandExecutor;
 import team.unison.remote.WorkerException;
 import team.unison.transfer.FsSnapshotterDataForOperation;
 
@@ -25,7 +26,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class FsSnapshotterBatchRemote {
+public class FsSnapshotterBatchRemote extends FsRemoteWrapper {
   private static final Logger log = LoggerFactory.getLogger(FsSnapshotterBatchRemote.class);
 
   private static final String MAKE_SNAPSHOTTABLE_OPERATION = "make_snapshottable";
@@ -39,13 +40,11 @@ public class FsSnapshotterBatchRemote {
   private final FsSnapshotterDataForOperation data;
 
   public FsSnapshotterBatchRemote(@Nonnull FsSnapshotterDataForOperation data) {
+    super(data.threadCount);
     this.data = data;
   }
 
-  public StatisticsDTO snapshot(
-      @Nonnull FsWrapperCommandExecutor commandExecutor,
-      @Nullable List<String> paths
-  ) {
+  public StatisticsDTO snapshot(@Nullable List<String> paths) {
     StatisticsDTO stats = new StatisticsDTO();
     if (paths == null || paths.isEmpty()) {
       return stats;
@@ -53,7 +52,10 @@ public class FsSnapshotterBatchRemote {
 
     List<CompletableFuture<Void>> futures = new ArrayList<>();
     for (String path : paths) {
-      futures.add(commandExecutor.runAsync((fsWrapper) -> snapshotActions(fsWrapper, path, stats)));
+      futures.add(CompletableFuture.runAsync(() -> {
+        FsWrapper fsWrapper = FsWrapperFactory.get(data.conf);
+        snapshotActions(fsWrapper, path, stats);
+      }, executor));
     }
     try {
       CompletableFuture.allOf(new CompletableFuture[futures.size()]).join();

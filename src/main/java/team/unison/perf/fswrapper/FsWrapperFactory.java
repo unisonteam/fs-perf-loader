@@ -15,7 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class FsWrapperFactory {
-  private static final Map<Map<String, String>, FsWrapper> CACHE = new ConcurrentHashMap<>();
+  private static final Map<Thread, FsWrapper> THREAD_TO_HDSF_WRAPPER = new ConcurrentHashMap<>();
+  private static final Map<Map<String, String>, FsWrapper> S3_CACHE = new ConcurrentHashMap<>();
   private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
 
   private FsWrapperFactory() {
@@ -32,11 +33,11 @@ public class FsWrapperFactory {
       List<FsWrapper> ret = new ArrayList<>();
       for (String s3uri : s3Uris) {
         conf.put("s3.uri", s3uri);
-        ret.add(CACHE.computeIfAbsent(conf, map -> newInstance(root, map)));
+        ret.add(S3_CACHE.computeIfAbsent(conf, map -> newInstance(root, map)));
       }
       return randomFsWrapper(ret);
     } else {
-      return newInstance(root, conf);
+      return THREAD_TO_HDSF_WRAPPER.computeIfAbsent(Thread.currentThread(), k -> newInstance(root, conf));
     }
   }
 
