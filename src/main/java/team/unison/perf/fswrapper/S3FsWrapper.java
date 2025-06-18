@@ -16,20 +16,43 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
+import software.amazon.awssdk.services.s3.model.CompletedPart;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.services.s3.model.UploadPartRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import team.unison.remote.WorkerException;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 public class S3FsWrapper implements FsWrapper {
   private static final Logger log = LoggerFactory.getLogger(S3FsWrapper.class);
+  private static final int DEFAULT_MULTIPART_TRESHOLD = 8 * 1024 * 1024; // 8M
   private final S3Client s3Client;
+  private final int defaultMultipartThreshold;
   private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
 
   public S3FsWrapper(Map<String, String> conf) {
@@ -39,6 +62,11 @@ public class S3FsWrapper implements FsWrapper {
     StaticCredentialsProvider staticCredentialsProvider = StaticCredentialsProvider.create(awsBasicCredentials);
 
     Region region = Region.US_EAST_1;
+    if (conf.containsKey("s3.multipart_threshold")) {
+      defaultMultipartThreshold = Integer.parseInt(conf.get("s3.multipart_threshold"));
+    } else {
+      defaultMultipartThreshold = DEFAULT_MULTIPART_TRESHOLD;
+    }
     try {
       log.info("Create S3 client for uri {}", conf.get("s3.uri"));
       URI s3URI = new URI(conf.get("s3.uri"));
@@ -59,12 +87,77 @@ public class S3FsWrapper implements FsWrapper {
   @Override
   public boolean create(String bucket, String path, long length, byte[] data, boolean useTmpFile) {
     String[] bucketAndKey = toBucketAndKey(bucket, path);
-    PutObjectResponse putObjectResponse = s3Client.putObject(PutObjectRequest.builder()
+    if (length >= defaultMultipartThreshold) {
+      String uploadId = null;
+      try {
+        // 1. Initiate multipart upload
+        CreateMultipartUploadRequest createRequest = CreateMultipartUploadRequest.builder()
+            .bucket(bucketAndKey[0])
+            .key(bucketAndKey[1])
+            .build();
+        CreateMultipartUploadResponse createResponse = s3Client.createMultipartUpload(createRequest);
+        uploadId = createResponse.uploadId();
+
+        // 2. Split byte[] and upload parts
+        List<CompletedPart> completedParts = new ArrayList<>();
+        int partNumber = 1;
+        EndlessInputStream endlessInputStream = new EndlessInputStream(data);
+        for (int offset = 0; offset < length; offset += defaultMultipartThreshold) {
+          int len = Math.min(defaultMultipartThreshold, (int)length - offset);
+          byte[] partBytes = new byte[len];
+          endlessInputStream.read(partBytes, 0, len);
+
+          UploadPartRequest uploadRequest = UploadPartRequest.builder()
+              .bucket(bucketAndKey[0])
+              .key(bucketAndKey[1])
+              .uploadId(uploadId)
+              .partNumber(partNumber)
+              .contentLength((long) partBytes.length)
+              .build();
+
+          UploadPartResponse uploadResponse = s3Client.uploadPart(uploadRequest,
+              RequestBody.fromBytes(partBytes));
+
+          completedParts.add(CompletedPart.builder()
+              .partNumber(partNumber)
+              .eTag(uploadResponse.eTag())
+              .build());
+
+          partNumber++;
+        }
+        // 3. Complete multipart upload
+        CompletedMultipartUpload completedUpload = CompletedMultipartUpload.builder()
+            .parts(completedParts)
+            .build();
+
+        CompleteMultipartUploadRequest completeRequest = CompleteMultipartUploadRequest.builder()
+            .bucket(bucketAndKey[0])
+            .key(bucketAndKey[1])
+            .uploadId(uploadId)
+            .multipartUpload(completedUpload)
+            .build();
+
+        s3Client.completeMultipartUpload(completeRequest);
+        return true;
+      } catch (Exception ex) {
+        if (uploadId != null) {
+            s3Client.abortMultipartUpload(AbortMultipartUploadRequest.builder()
                     .bucket(bucketAndKey[0])
                     .key(bucketAndKey[1])
-                    .build(),
-            RequestBody.fromInputStream(new EndlessInputStream(data), length));
-    return putObjectResponse.sdkHttpResponse().isSuccessful();
+                    .uploadId(uploadId)
+                    .build());
+        }
+        log.error("Multipart upload failed for key {} into bucket {}!", bucketAndKey[1], bucketAndKey[0], ex);
+        return false;
+      }
+    } else {
+      PutObjectResponse putObjectResponse = s3Client.putObject(PutObjectRequest.builder()
+              .bucket(bucketAndKey[0])
+              .key(bucketAndKey[1])
+              .build(),
+          RequestBody.fromInputStream(new EndlessInputStream(data), length));
+      return putObjectResponse.sdkHttpResponse().isSuccessful();
+    }
   }
 
   @Override
