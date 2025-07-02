@@ -11,10 +11,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
@@ -27,7 +28,6 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
@@ -37,9 +37,11 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
+import software.amazon.awssdk.transfer.s3.internal.TransferManagerFactory;
+import software.amazon.awssdk.transfer.s3.model.DownloadRequest;
 import team.unison.remote.WorkerException;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -50,9 +52,11 @@ import java.util.stream.Collectors;
 
 public class S3FsWrapper implements FsWrapper {
   private static final Logger log = LoggerFactory.getLogger(S3FsWrapper.class);
-  private static final int DEFAULT_MULTIPART_TRESHOLD = 8 * 1024 * 1024; // 8M
+  private static final long DEFAULT_MULTIPART_THRESHOLD = 8L * 1024 * 1024; // 8M
   private final S3Client s3Client;
-  private final int defaultMultipartThreshold;
+  private final S3AsyncClient s3AsyncClient;
+  private final S3TransferManager transferManager;
+  private final long multipartThreshold;
   private static final byte[] DEVNULL = new byte[128 * 1024 * 1024];
 
   public S3FsWrapper(Map<String, String> conf) {
@@ -63,9 +67,9 @@ public class S3FsWrapper implements FsWrapper {
 
     Region region = Region.US_EAST_1;
     if (conf.containsKey("s3.multipart_threshold")) {
-      defaultMultipartThreshold = Integer.parseInt(conf.get("s3.multipart_threshold"));
+      multipartThreshold = Integer.parseInt(conf.get("s3.multipart_threshold"));
     } else {
-      defaultMultipartThreshold = DEFAULT_MULTIPART_TRESHOLD;
+      multipartThreshold = DEFAULT_MULTIPART_THRESHOLD;
     }
     try {
       log.info("Create S3 client for uri {}", conf.get("s3.uri"));
@@ -79,6 +83,18 @@ public class S3FsWrapper implements FsWrapper {
               .httpClientBuilder(ApacheHttpClient.builder()
                       .connectionTimeout(Duration.ofMinutes(10))
                       .socketTimeout(Duration.ofMinutes(10))).build();
+
+      s3AsyncClient = S3AsyncClient.crtBuilder()
+          .endpointOverride(s3URI)
+          .credentialsProvider(staticCredentialsProvider)
+          .region(region)
+          .forcePathStyle(true)
+          .minimumPartSizeInBytes(multipartThreshold)
+          .build();
+
+      transferManager = new TransferManagerFactory.DefaultBuilder()
+          .s3Client(s3AsyncClient)
+          .build();
     } catch (URISyntaxException e) {
       throw WorkerException.wrap(e);
     }
@@ -87,7 +103,7 @@ public class S3FsWrapper implements FsWrapper {
   @Override
   public boolean create(String bucket, String path, long length, byte[] data, boolean useTmpFile) {
     String[] bucketAndKey = toBucketAndKey(bucket, path);
-    if (length >= defaultMultipartThreshold) {
+    if (length >= multipartThreshold) {
       String uploadId = null;
       try {
         // 1. Initiate multipart upload
@@ -102,10 +118,11 @@ public class S3FsWrapper implements FsWrapper {
         List<CompletedPart> completedParts = new ArrayList<>();
         int partNumber = 1;
         EndlessInputStream endlessInputStream = new EndlessInputStream(data);
-        for (int offset = 0; offset < length; offset += defaultMultipartThreshold) {
-          int len = Math.min(defaultMultipartThreshold, (int)length - offset);
-          byte[] partBytes = new byte[len];
-          endlessInputStream.read(partBytes, 0, len);
+        // TODO: consider parallel handling of the parts uploads
+        for (int offset = 0; offset < length; offset += multipartThreshold) {
+          long len = Math.min(multipartThreshold, (int)length - offset);
+          byte[] partBytes = new byte[(int) len];
+          endlessInputStream.read(partBytes, 0, (int) len);
 
           UploadPartRequest uploadRequest = UploadPartRequest.builder()
               .bucket(bucketAndKey[0])
@@ -177,21 +194,17 @@ public class S3FsWrapper implements FsWrapper {
   @Override
   public boolean get(String bucket, String path) {
     String[] bucketAndKey = toBucketAndKey(bucket, path);
-    ResponseInputStream<GetObjectResponse> getObjectResponse = s3Client.getObject(GetObjectRequest.builder()
-            .bucket(bucketAndKey[0])
-            .key(bucketAndKey[1])
-            .build());
-
-    if (!getObjectResponse.response().sdkHttpResponse().isSuccessful()) {
-      return false;
-    }
-
     try {
-      while (getObjectResponse.read(DEVNULL) >= 0) {
-        // nop
-      }
-    } catch (IOException e) {
-      throw WorkerException.wrap(e);
+      transferManager.download(
+              DownloadRequest.builder()
+                  .getObjectRequest(GetObjectRequest.builder().bucket(bucketAndKey[0]).key(bucketAndKey[1]).build())
+                  .responseTransformer(AsyncResponseTransformer.toBytes())
+                  .build())
+          .completionFuture()
+          .join();
+    } catch (Exception ex) {
+      log.error("Something went wrong", ex);
+      return false;
     }
 
     return true;
