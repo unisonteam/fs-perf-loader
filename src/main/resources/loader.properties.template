@@ -43,6 +43,8 @@ ssh.key=/home/user/.ssh/private_key
 #conf.MYS3.s3.uri=http://host{1..5}.domain:port
 # if the loaded file has a size upper than the value of the 's3.multipart_threshold' configuration property, then the file will be loaded through a multipart upload
 #conf.MYS3.s3.multipart_threshold=8388608 # 8MB
+# concurrent requests count on loading parts for multipart uploaded file
+#conf.MYS3.s3.max_concurrent_requests=10
 
 fsloader.LOAD.hosts=fat01-vm1.unison.team,fat01-vm2.unison.team
 fsloader.LOAD.paths=/tmp/path1,/tmp/path2
