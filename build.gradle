@@ -67,6 +67,7 @@ dependencies {
     agent 'software.amazon.awssdk:s3-transfer-manager'
     agent 'software.amazon.awssdk.crt:aws-crt:0.29.9'
     agent 'software.amazon.awssdk:apache-client'
+    agent 'software.amazon.awssdk:netty-nio-client'
     agent 'org.apache.httpcomponents:httpclient:4.5.14'
     // ^^^ workaround for https://github.com/aws/aws-sdk-java-v2/issues/1372
     agent 'io.prometheus:simpleclient:0.16.0'
