@@ -140,12 +140,17 @@ public class S3FsWrapper implements FsWrapper {
         Semaphore semaphore = new Semaphore(maxConcurrentRequests);
 
         int partNumber = 1;
+        long previousLen = 0;
+        AsyncRequestBody bodyToSent = null;
         for (long offset = 0; offset < length; offset += multipartThreshold) {
           long len = Math.min(multipartThreshold, length - offset);
           byte[] partBytes = new byte[(int) len];
           try {
             semaphore.acquire();
-            endlessInputStream.read(partBytes, 0, (int) len);
+            if (previousLen != len) {
+              endlessInputStream.read(partBytes, 0, (int) len);
+              bodyToSent = AsyncRequestBody.fromBytes(partBytes);
+            }
           } catch (Exception e) {
             throw WorkerException.wrap(e);
           }
@@ -160,7 +165,7 @@ public class S3FsWrapper implements FsWrapper {
 
           int currentPartNumber = partNumber;
           uploadFutures.add(
-              getS3AsyncClient().uploadPart(uploadRequest, AsyncRequestBody.fromBytes(partBytes))
+              getS3AsyncClient().uploadPart(uploadRequest, bodyToSent)
                   .whenComplete((resp, err) -> semaphore.release())
                   .thenApply(uploadResponse -> {
                     log.info("Finished uploading part #{}", currentPartNumber);
@@ -170,6 +175,7 @@ public class S3FsWrapper implements FsWrapper {
                         .build();
                   }));
           partNumber++;
+          previousLen = len;
         }
 
         // Wait for all parts to finish uploading
