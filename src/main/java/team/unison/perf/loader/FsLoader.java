@@ -19,6 +19,7 @@ import team.unison.remote.WorkerException;
 import static team.unison.perf.PerfLoaderUtils.initSubdirs;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
@@ -255,7 +256,7 @@ public final class FsLoader implements Runnable {
             genericWorkers.parallelStream().forEach(gw -> {
               try {
                 gw.getAgent().clearStatistics();
-              } catch (IOException e) {
+              } catch (IOException | UncheckedIOException e) {
                 log.warn("Error clearing statistics in agent at host {}", gw.getHost());
               }
             });
