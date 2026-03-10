@@ -83,7 +83,7 @@ if [[ "$DRY_RUN" == true ]]; then
   echo "[DRY RUN] Would push branch and tags to origin"
 else
   git push origin HEAD --force
-  git push origin "release-${RELEASE_VERSION}" "v${RELEASE_VERSION}" "${RELEASE_VERSION}" --force
+  git push origin "refs/tags/release-${RELEASE_VERSION}" "refs/tags/v${RELEASE_VERSION}" "refs/tags/${RELEASE_VERSION}" --force
   echo "Pushed commit and tags to origin"
 fi
 
