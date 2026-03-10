@@ -24,6 +24,15 @@ public class FsLoaderBatchRemote {
   private static final int WRITE_DATA_ARRAY_SIZE = 1024 * 1024;
   private static final AtomicInteger FS_WRAPPER_COUNTER = new AtomicInteger();
   private static final int MAX_FILE_POOL_SIZE = 1_000_000; // approximate
+  private static final StatisticsDTO RUNNING_STATS = new StatisticsDTO();
+
+  public static StatisticsDTO getRunningStatistics() {
+    return RUNNING_STATS.snapshot();
+  }
+
+  public static void clearRunningStatistics() {
+    RUNNING_STATS.clear();
+  }
 
   public static StatisticsDTO runCommand(Map<String, String> conf, Map<String, Long> batch, Map<String, String> command,
                                          FsLoaderOperationConf opConf) {
@@ -46,6 +55,7 @@ public class FsLoaderBatchRemote {
                               command);
                       long elapsed = System.nanoTime() - start;
                       PrometheusUtils.record(stats, command.get("operation"), elapsed, success, entry.getValue());
+                      RUNNING_STATS.add(command.get("operation"), success, elapsed);
                       if (opConf.getLoadDelayInMillis() > 0) {
                         Utils.sleep(opConf.getLoadDelayInMillis());
                       }
@@ -135,6 +145,7 @@ public class FsLoaderBatchRemote {
         boolean success = runCommand(fsWrapper, fileName, fileSize, barr, opConf.isUsetmpFile(), command);
         long elapsed = System.nanoTime() - start;
         PrometheusUtils.record(stats, command.get("operationType"), elapsed, success, fileSize);
+        RUNNING_STATS.add(command.get("operationType"), success, elapsed);
         if (!success) {
           filePool.remove(fileName);
         }

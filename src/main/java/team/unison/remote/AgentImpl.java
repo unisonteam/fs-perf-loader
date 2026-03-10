@@ -137,8 +137,14 @@ class AgentImpl implements Agent, Unreferenced {
   }
 
   @Override
+  public StatisticsDTO getRunningStatistics() {
+    return FsLoaderBatchRemote.getRunningStatistics();
+  }
+
+  @Override
   public void clearStatistics() throws IOException {
     PrometheusUtils.clearStatistics(false);
+    FsLoaderBatchRemote.clearRunningStatistics();
   }
 
   @Override

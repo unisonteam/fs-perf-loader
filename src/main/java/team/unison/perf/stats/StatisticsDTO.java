@@ -47,4 +47,34 @@ public class StatisticsDTO implements Serializable {
   public synchronized void clear() {
     results.clear();
   }
+
+  /**
+   * Returns a thread-safe deep copy of the current statistics.
+   * The returned DTO is independent and safe to read without synchronization.
+   */
+  public synchronized StatisticsDTO snapshot() {
+    StatisticsDTO copy = new StatisticsDTO();
+    for (Map.Entry<String, List<Long>> entry : results.entrySet()) {
+      copy.results.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+    }
+    return copy;
+  }
+
+  /**
+   * Returns a compact summary: operation name to [totalCount, failedCount].
+   */
+  public synchronized Map<String, long[]> getSummary() {
+    Map<String, long[]> summary = new HashMap<>();
+    for (Map.Entry<String, List<Long>> entry : results.entrySet()) {
+      long total = entry.getValue().size();
+      long failed = 0;
+      for (Long val : entry.getValue()) {
+        if (val <= 0) {
+          failed++;
+        }
+      }
+      summary.put(entry.getKey(), new long[]{total, failed});
+    }
+    return summary;
+  }
 }

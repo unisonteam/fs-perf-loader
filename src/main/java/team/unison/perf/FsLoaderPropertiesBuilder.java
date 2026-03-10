@@ -67,6 +67,7 @@ final class FsLoaderPropertiesBuilder {
               .subdirsWidth(Integer.parseInt(getProperty(props, prefix, "subdirs.width", "2")))
               .subdirsFormat(getProperty(props, prefix, "subdirs.format", "%d"))
               .fill(getProperty(props, prefix, "fill", "random"))
+              .statusInterval(Duration.ofSeconds(Long.parseLong(getProperty(props, prefix, "status.interval", "10"))))
               .createFsLoader();
 
       fsLoaders.add(fsLoader);

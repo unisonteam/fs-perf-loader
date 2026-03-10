@@ -33,6 +33,7 @@ public class FsLoaderBuilder {
   private String filesSizesDistribution;
   private String filesSuffixesDistribution;
   private Duration batchTimeout = Duration.ofMinutes(10);
+  private Duration statusInterval = Duration.ofSeconds(10);
   private Random random = new Random();
   private FsLoader.Type type = FsLoader.Type.WINDOW;
 
@@ -146,6 +147,11 @@ public class FsLoaderBuilder {
     return this;
   }
 
+  public FsLoaderBuilder statusInterval(Duration statusInterval) {
+    this.statusInterval = statusInterval;
+    return this;
+  }
+
   public FsLoaderBuilder random(Random random) {
     this.random = random;
     return this;
@@ -160,7 +166,7 @@ public class FsLoaderBuilder {
     return new FsLoader(name, conf, genericWorkerBuilders, threads, paths, workload, subdirsWidth, subdirsDepth, subdirsFormat, batches,
             useTmpFile, loadDelay, commandDelay, count, period, filesInBatch, filesSizesDistribution, filesSuffixesDistribution,
             fill,
-            random, type);
+            random, type, statusInterval);
   }
 
   @Override
@@ -172,7 +178,7 @@ public class FsLoaderBuilder {
             + ", type=" + type + ", batches=" + batches
             + ", useTmpFile=" + useTmpFile + ", loadDelay=" + loadDelay + ", commandDelay=" + commandDelay
             + ", count=" + count + ", period=" + period
-            + ", filesInBatch=" + filesInBatch + ", batchTimeout=" + batchTimeout + ", filesSizesDistribution='" + filesSizesDistribution + '\''
+            + ", filesInBatch=" + filesInBatch + ", batchTimeout=" + batchTimeout + ", statusInterval=" + statusInterval + ", filesSizesDistribution='" + filesSizesDistribution + '\''
             + ", filesSuffixesDistribution='" + filesSuffixesDistribution
             + ", fill='" + fill
             + '\'' + '}';

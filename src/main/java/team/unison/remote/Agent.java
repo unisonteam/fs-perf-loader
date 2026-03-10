@@ -39,6 +39,8 @@ public interface Agent extends Remote {
 
   void shutdown() throws IOException;
 
+  StatisticsDTO getRunningStatistics() throws IOException;
+
   void clearStatistics() throws IOException;
 
   String jstack(String className) throws IOException;

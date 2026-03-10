@@ -28,6 +28,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -70,6 +71,8 @@ public final class FsLoader implements Runnable {
   private final Random random;
 
   private final Type type;
+  private final Duration statusInterval;
+  private final AtomicInteger completedBatches = new AtomicInteger(0);
 
   FsLoader(String name, Map<String, String> conf, Collection<GenericWorkerBuilder> genericWorkerBuilders,
            int threads, List<String> paths, List<Map<String, String>> workload,
@@ -77,7 +80,7 @@ public final class FsLoader implements Runnable {
            Duration loadDelay, Duration commandDelay,
            int count, Duration period,
            int filesInBatch, String filesSizesDistribution, String filesSuffixesDistribution, String fill,
-           Random random, Type type) {
+           Random random, Type type, Duration statusInterval) {
     this.name = name;
     this.conf = conf;
     this.genericWorkerBuilders = new ArrayList<>(genericWorkerBuilders);
@@ -97,6 +100,7 @@ public final class FsLoader implements Runnable {
     this.filesSuffixesDistribution = filesSuffixesDistribution;
     this.fill = fill;
     this.random = random;
+    this.statusInterval = statusInterval;
 
     if (workload == null || workload.isEmpty()) {
       Map<String, String> defaultCommand = new HashMap<>();
@@ -192,10 +196,19 @@ public final class FsLoader implements Runnable {
 
   @Override
   public void run() {
+    StatusDashboard dashboard = null;
     try {
+      if (!statusInterval.isZero() && System.console() != null) {
+        dashboard = StatusDashboard.tryActivate(name, statusInterval, totalBatches, completedBatches);
+      }
+
       List<GenericWorker> genericWorkers = genericWorkerBuilders.parallelStream()
               .map(GenericWorkerBuilder::get)
               .collect(Collectors.toList());
+
+      if (dashboard != null) {
+        dashboard.setWorkers(genericWorkers);
+      }
 
       for (int i = 0; i < count; i++) {
         if (i != 0) {
@@ -204,11 +217,16 @@ public final class FsLoader implements Runnable {
         }
         log.info("Start load {}{}", name, (count == 1) ? "" : ": " + (i + 1));
         runSingle(genericWorkers);
-        printSummary();
       }
     } catch (Exception e) {
       log.warn("Exception in run", e);
+    } finally {
+      if (dashboard != null) {
+        dashboard.stop();
+      }
     }
+    // Print summary after dashboard stops so it goes directly to the real terminal
+    printSummary();
     log.info("Load {} ended", name);
   }
 
@@ -216,6 +234,7 @@ public final class FsLoader implements Runnable {
     ExecutorService executorService = Executors.newFixedThreadPool(genericWorkers.size());
     List<GenericWorker> workersCopy = new ArrayList<>(genericWorkers);
     loadResults.clear();
+    completedBatches.set(0);
 
     try {
       try {
@@ -287,6 +306,19 @@ public final class FsLoader implements Runnable {
       char fillChar = (char) ("random".equalsIgnoreCase(fill) ? -1 : Long.parseLong(fill));
       loadResult = genericWorker.getAgent().runMixedWorkload(conf, batch, workload, new FsLoaderOperationConf(threads, useTmpFile, loadDelay.toMillis(), fillChar));
       log.info("End mixed workload at host {}, batch took {}", genericWorker.getHost(), Duration.between(before, Instant.now()));
+      for (String op : loadResult.getOperations()) {
+        List<Long> opResults = loadResult.getResults(op);
+        long failures = 0;
+        for (Long val : opResults) {
+          if (val <= 0) {
+            failures++;
+          }
+        }
+        if (failures > 0) {
+          log.warn("[BATCH ALERT] {} failures in '{}' at host {}", failures, op, genericWorker.getHost());
+        }
+      }
+      completedBatches.incrementAndGet();
     } catch (IOException e) {
       throw WorkerException.wrap(e);
     } finally {
@@ -316,6 +348,19 @@ public final class FsLoader implements Runnable {
       }
       log.info("End batch for command '{}' at host {}, batch took {}", command.get("operation"),
               genericWorker.getHost(), Duration.between(before, Instant.now()));
+      for (String op : commandResult.getOperations()) {
+        List<Long> opResults = commandResult.getResults(op);
+        long failures = 0;
+        for (Long val : opResults) {
+          if (val <= 0) {
+            failures++;
+          }
+        }
+        if (failures > 0) {
+          log.warn("[BATCH ALERT] {} failures in '{}' at host {}", failures, op, genericWorker.getHost());
+        }
+      }
+      completedBatches.incrementAndGet();
     } finally {
       synchronized (workersCopy) {
         workersCopy.add(genericWorker);
